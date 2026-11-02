@@ -59,3 +59,11 @@ The Docker quick start above starts the platform API and admin console on port `
 ## Suggested GitHub repository description
 
 `A Go-based eSignet Native SSO reference project with identity and OTP services, PostgreSQL, a browser-based Super App/Child App demo, and Android sample apps.`
+
+Team
+Team Name: CODECRAFT
+
+Team Members:
+1. Yash Mangal
+2. Shubham Kuvad
+3. Harsh Lotiya
