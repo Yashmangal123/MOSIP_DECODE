@@ -64,6 +64,6 @@ Team
 Team Name: CODECRAFT
 
 Team Members:
-1. Yash Mangal
+1. Harsh Lotiya
 2. Shubham Kuvad
-3. Harsh Lotiya
+3. Yash Mangal
