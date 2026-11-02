@@ -10,7 +10,7 @@ A runnable reference project exploring MOSIP eSignet-style authentication and Na
 
 ```bash
 git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd MOSIP-DECODE && .start/.sh
+cd MOSIP-DECODE && chmod +x start.sh && ./start.sh
 ```
 
 The first command clones your repository. The second starts the platform and PostgreSQL containers. On first run, the script creates `services/platform/.env` from the safe example configuration. To send real OTP emails, stop the stack, edit that file with valid SMTP credentials (for Gmail, use an App Password), then run `./run.sh` again.
