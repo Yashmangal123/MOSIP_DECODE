@@ -19,6 +19,7 @@ When the service is ready, open:
 
 - **Admin console:** http://localhost:8090/console
 - **Health check:** http://localhost:8090/health
+- **DEMO FILE TO RUN:** http://localhost:8091/
 
 The demo admin credentials are configured in `services/platform/.env.example`. Change them before exposing the service beyond your local machine. Stop the stack with `Ctrl+C`; to stop and remove its containers, run `docker compose -f services/platform/deploy/docker-compose.yml down` from the repository root.
 
