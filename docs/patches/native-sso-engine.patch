@@ -1,0 +1,2022 @@
+--- /tmp/tid/backend/internal/oauth/oauth2/constants/constants.go	2026-11-02 15:35:43.043625809 +0000
++++ thunderid-engine/internal/oauth/oauth2/constants/constants.go	2026-11-02 15:23:34.701049216 +0000
+@@ -8,16 +8,15 @@
+ 	"errors"
+ 
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/model"
+-	systemconst "github.com/thunder-id/thunderid/internal/system/constants"
+ )
+ 
+ // OAuth2 request parameters.
+ const (
+ 	RequestParamGrantType           string = "grant_type"
+ 	RequestParamClientID            string = "client_id"
+-	RequestParamClientSecret        string = systemconst.ClientSecretParamName
+-	RequestParamClientAssertion     string = systemconst.ClientAssertionParamName
+-	RequestParamClientAssertionType string = systemconst.ClientAssertionTypeParamName
++	RequestParamClientSecret        string = "client_secret"
++	RequestParamClientAssertion     string = "client_assertion"
++	RequestParamClientAssertionType string = "client_assertion_type"
+ 	RequestParamRedirectURI         string = "redirect_uri"
+ 	RequestParamUsername            string = "username"
+ 	RequestParamPassword            string = "password"
+@@ -48,7 +47,6 @@
+ 	RequestParamUILocales           string = "ui_locales"
+ 	RequestParamNonce               string = "nonce"
+ 	RequestParamPrompt              string = "prompt"
+-	RequestParamRequest             string = "request"
+ 	RequestParamRequestURI          string = "request_uri"
+ 	RequestParamAcrValues           string = "acr_values"
+ 	RequestParamMaxAge              string = "max_age"
+@@ -60,9 +58,6 @@
+ 	RequestParamBindingMessage      string = "binding_message"
+ 	RequestParamRequestedExpiry     string = "requested_expiry"
+ 	RequestParamAuthReqID           string = "auth_req_id"
+-
+-	// RequestParamAuthorizationDetails is the RFC 9396 authorization request parameter.
+-	RequestParamAuthorizationDetails string = systemconst.AuthorizationDetailsParamName
+ )
+ 
+ // OAuth2 HTTP headers.
+@@ -118,18 +113,17 @@
+ 
+ // OAuth2 endpoints.
+ const (
+-	OAuth2TokenEndpoint                     string = "/oauth2/token" // #nosec G101
+-	OAuth2AuthorizationEndpoint             string = "/oauth2/authorize"
+-	OAuth2IntrospectionEndpoint             string = "/oauth2/introspect"
+-	OAuth2RevokeEndpoint                    string = "/oauth2/revoke"
+-	OAuth2UserInfoEndpoint                  string = "/oauth2/userinfo"
+-	OAuth2JWKSEndpoint                      string = "/oauth2/jwks"
+-	OAuth2LogoutEndpoint                    string = "/oauth2/logout"
+-	OAuth2DCREndpoint                       string = "/oauth2/dcr/register"
+-	OAuth2PAREndpoint                       string = "/oauth2/par"
+-	OAuth2BackchannelAuthEndpoint           string = "/oauth2/bc-authorize"
+-	OAuth2BackchannelAuthCallbackEndpoint   string = "/oauth2/bc-authorize/callback"
+-	OAuth2AuthorizationDetailsTypesEndpoint string = "/oauth2/authorization-details-types"
++	OAuth2TokenEndpoint                   string = "/oauth2/token" // #nosec G101
++	OAuth2AuthorizationEndpoint           string = "/oauth2/authorize"
++	OAuth2IntrospectionEndpoint           string = "/oauth2/introspect"
++	OAuth2RevokeEndpoint                  string = "/oauth2/revoke"
++	OAuth2UserInfoEndpoint                string = "/oauth2/userinfo"
++	OAuth2JWKSEndpoint                    string = "/oauth2/jwks"
++	OAuth2LogoutEndpoint                  string = "/oauth2/logout"
++	OAuth2DCREndpoint                     string = "/oauth2/dcr/register"
++	OAuth2PAREndpoint                     string = "/oauth2/par"
++	OAuth2BackchannelAuthEndpoint         string = "/oauth2/bc-authorize"
++	OAuth2BackchannelAuthCallbackEndpoint string = "/oauth2/bc-authorize/callback"
+ )
+ 
+ // OAuth2 token types.
+@@ -158,6 +152,11 @@
+ 	// Authorization Grant (draft-ietf-oauth-identity-assertion-authz-grant).
+ 	//nolint:gosec // Token type identifier, not a credential
+ 	TokenTypeIdentifierIDJAG TokenTypeIdentifier = "urn:ietf:params:oauth:token-type:id-jag"
++	// TokenTypeIdentifierDeviceSecret is the actor_token_type of an OpenID Connect Native SSO
++	// (OpenID Connect Native SSO for Mobile Apps 1.0, section 4.1) token exchange request. It
++	// identifies the actor_token as a device_secret issued by this authorization server.
++	//nolint:gosec // Token type identifier, not a credential
++	TokenTypeIdentifierDeviceSecret TokenTypeIdentifier = "urn:openid:params:token-type:device-secret"
+ )
+ 
+ // supportedTokenTypeIdentifiers is the single source of truth for all supported token type identifiers.
+@@ -169,6 +168,27 @@
+ 	TokenTypeIdentifierIDJAG,
+ }
+ 
++// supportedActorTokenTypeIdentifiers lists the token type identifiers accepted in the RFC 8693
++// actor_token_type parameter. The Native SSO device-secret identifier is an actor type only: it
++// identifies who is performing the exchange (the device), never the subject of the exchange.
++var supportedActorTokenTypeIdentifiers = []TokenTypeIdentifier{
++	TokenTypeIdentifierAccessToken,
++	TokenTypeIdentifierRefreshToken,
++	TokenTypeIdentifierIDToken,
++	TokenTypeIdentifierJWT,
++	TokenTypeIdentifierDeviceSecret,
++}
++
++// IsValidActorTokenType reports whether tti may be used as an actor_token_type value.
++func (tti TokenTypeIdentifier) IsValidActorTokenType() bool {
++	for _, valid := range supportedActorTokenTypeIdentifiers {
++		if tti == valid {
++			return true
++		}
++	}
++	return false
++}
++
+ // IsValid checks if the TokenTypeIdentifier is valid.
+ func (tti TokenTypeIdentifier) IsValid() bool {
+ 	for _, valid := range supportedTokenTypeIdentifiers {
+@@ -195,18 +215,15 @@
+ 	ErrorLoginRequired            string = "login_required"
+ 	ErrorConsentRequired          string = "consent_required"
+ 	ErrorAccountSelectionRequired string = "account_selection_required"
+-	ErrorInteractionRequired      string = "interaction_required"
+ 	ErrorInvalidDPoPProof         string = "invalid_dpop_proof"
+ 	ErrorAuthorizationPending     string = "authorization_pending"
+ 	ErrorSlowDown                 string = "slow_down"
+ 	ErrorExpiredToken             string = "expired_token" // #nosec G101
+ 	ErrorUnknownUserID            string = "unknown_user_id"
+ 	ErrorInvalidBindingMessage    string = "invalid_binding_message"
+-	ErrorRequestNotSupported      string = "request_not_supported"
+-	ErrorRequestURINotSupported   string = "request_uri_not_supported"
+-
+-	// ErrorInvalidAuthorizationDetails is the RFC 9396 error for an unacceptable authorization_details.
+-	ErrorInvalidAuthorizationDetails string = "invalid_authorization_details"
++	// ErrorInteractionRequired instructs a native client to fall back to an authorization request
++	// through the system browser (OpenID Connect Native SSO for Mobile Apps 1.0, section 4.4).
++	ErrorInteractionRequired string = "interaction_required"
+ )
+ 
+ // UnSupportedGrantTypeError is returned when an unsupported grant type is requested.
+@@ -248,10 +265,6 @@
+ 		Description: "Requests access to user's assigned roles",
+ 		Claims:      []string{"roles"},
+ 	},
+-	ScopeDeviceSSO: {
+-		Name:        ScopeDeviceSSO,
+-		Description: "Requests the device secret, which signs the user in to other applications without a redirect",
+-	},
+ }
+ 
+ // Standard JWT claim names.
+@@ -263,32 +276,18 @@
+ 	ClaimExp      string = "exp"
+ 	ClaimIat      string = "iat"
+ 	ClaimJTI      string = "jti"
+-	ClaimNbf      string = "nbf"
+-	ClaimNonce    string = "nonce"
+-	ClaimAtHash   string = "at_hash"
+-	ClaimCHash    string = "c_hash"
+ 	ClaimAuthTime string = "auth_time"
+-	ClaimACR      string = "acr"
+-	ClaimScope    string = "scope"
+ )
+ 
+ // Custom JWT claim names.
+ const (
+-	// ClaimUserType is retained so apps that already list "userType" in their configured user
+-	// attributes keep receiving the user type's display name on tokens and userinfo.
+-	// TODO: Remove with the next major version bump. Use ClaimUserTypeHandle or ClaimUserTypeName instead.
+-	ClaimUserType       string = "userType"
+-	ClaimUserTypeHandle string = "userTypeHandle"
+-	ClaimUserTypeName   string = "userTypeName"
+-	ClaimOUID           string = "ouId"
+-	ClaimOUName         string = "ouName"
+-	ClaimOUHandle       string = "ouHandle"
+-	// ClaimOwner carries an agent's system-attribute owner on its client token.
+-	ClaimOwner string = "owner"
+-	// ClaimSubValidUntil carries when the subject agent's lifespan ends, its validUntil, on the agent's
+-	// client token, in Unix seconds like the other time claims. It is omitted for an agent whose
+-	// lifespan does not end.
+-	ClaimSubValidUntil          string = "sub_valid_until"
++	ClaimUserType string = "userType"
++	ClaimOUID     string = "ouId"
++	ClaimOUName   string = "ouName"
++	ClaimOUHandle string = "ouHandle"
++	// ClaimName and ClaimOwner carry an agent's system-attribute name/owner on its client token.
++	ClaimName                   string = "name"
++	ClaimOwner                  string = "owner"
+ 	ClaimClaimsRequest          string = "claims_req"
+ 	ClaimClaimsLocales          string = "claims_locales"
+ 	ClaimCompletedAuthClass     string = "completed_auth_class"
+@@ -297,63 +296,30 @@
+ 	ClaimAuthorizationRequestID string = "authorization_request_id"
+ 	ClaimClientID               string = "client_id"
+ 	ClaimAccessTokenSubject     string = "access_token_sub"
+-	// ClaimAccessTokenAudience carries the audience of a refresh token's access tokens.
+-	ClaimAccessTokenAudience string = "access_token_aud"
+-
+-	// ClaimAuthorizationDetails carries the granted RFC 9396 authorization details on an access token.
+-	ClaimAuthorizationDetails string = "authorization_details"
+-	// ClaimGrantedAuthorizationDetails carries the authorization details consent granted on a flow assertion.
+-	ClaimGrantedAuthorizationDetails string = "granted_authorization_details"
+-	// ClaimRefreshAuthorizationDetails carries the granted authorization details on a refresh token.
+-	ClaimRefreshAuthorizationDetails string = "access_token_authorization_details"
+-	// ClaimRefreshAuthorizationDetailVersions carries the granted type versions on a refresh token.
+-	ClaimRefreshAuthorizationDetailVersions string = "access_token_authorization_detail_versions"
+-
+ 	// ClaimIDP identifies the source identity provider (by issuer) that authenticated the subject of a
+ 	// jwt-bearer-grant (ID-JAG) access token, so downstream consumers can distinguish a federated
+ 	// principal from a local one.
+ 	ClaimIDP string = "idp"
+-	// ClaimSubType identifies the identity class of the token subject, so a resource server can apply
+-	// policy that differs by class. Emitted on client_credentials tokens.
+-	ClaimSubType string = "sub_type"
+ 	// ClaimTokenFamilyID identifies the token family (one authorization grant) a token belongs to.
+ 	// A single tfid is minted per grant during the login flow and rides every access and refresh
+ 	// token of that grant, unchanged across refresh rotation, so revocation can target a whole
+ 	// family at once. Revocation-only and not a client-managed identifier: it rides the token JWTs
+ 	// but is not part of any client-facing API.
+ 	ClaimTokenFamilyID string = "tfid"
+-	// ClaimSessionID is the OIDC sid claim the id of the SSO session an authentication belongs to. Carried by ID and
+-	// refresh tokens, never by access tokens, and omitted when no session was established.
+-	ClaimSessionID string = "sid"
+-	// ClaimCorrelationID carries the login flow's execution id on the flow assertion so the
+-	// authorization code, and in turn the token issuance events, report the same correlation
+-	// identifier as the flow's own observability events. Observability-only: it rides the internal
+-	// flow assertion and is never emitted on a client-facing token.
+-	ClaimCorrelationID string = "correlation_id"
+-	// ClaimSubjectID carries the resource ID of the entity the flow authenticated, and
+-	// ClaimSubjectType its entity category. The assertion's own sub claim holds the token subject,
+-	// which the application may map to an attribute such as an email address; these two carry the
+-	// opaque identity alongside it so token issuance can report the subject without resolving it
+-	// again and without reporting a mapped attribute. Both ride the internal flow assertion. sub_id
+-	// is also the device secret's sub, and the device secret token exchange compares it to tell the
+-	// user apart from another; no other token carries it and no other decision reads it.
+-	ClaimSubjectID   string = "sub_id"
+-	ClaimSubjectType string = "sub_type"
+-)
+-
+-// Subject type values for the sub_type claim.
+-const (
+-	// SubTypeApp marks the subject as an application.
+-	SubTypeApp string = "application"
+-	// SubTypeAgent marks the subject as an agent.
+-	SubTypeAgent string = "agent"
++	// ClaimSID is the session identifier claim carried by an id_token issued alongside a
++	// device_secret (OpenID Connect Native SSO section 3.4.1). It identifies the user's
++	// authentication session so that token exchange can reject a stale or revoked session.
++	ClaimSID string = "sid"
++	// ClaimDSHash binds an id_token to the device_secret issued with it (OpenID Connect Native SSO
++	// section 3.4.1). Its construction is AS-defined; this server uses base64url(SHA-256(device_secret)).
++	ClaimDSHash string = "ds_hash"
+ )
+ 
+ // SurfaceableClientSystemClaims is the fixed set of entity system-attribute keys that may be
+ // surfaced as client-token claims.
+ var SurfaceableClientSystemClaims = map[string]bool{
+-	ClaimOwner:         true,
+-	ClaimSubValidUntil: true,
++	ClaimName:  true,
++	ClaimOwner: true,
+ }
+ 
+ // OIDC subject types.
+@@ -382,8 +348,9 @@
+ // Standard OIDC scope names.
+ const (
+ 	ScopeOpenID = "openid"
+-	// ScopeDeviceSSO asks for the device secret, the SSO session the code was issued from, in the code
+-	// exchange response (OpenID Connect Native SSO for Mobile Apps).
++	// ScopeDeviceSSO is the OpenID Connect Native SSO for Mobile Apps 1.0 scope. Requesting it on an
++	// authorization request asks the authorization server to return a device_secret (together with
++	// an id_token carrying ds_hash and sid) when the authorization code is exchanged for tokens.
+ 	ScopeDeviceSSO = "device_sso"
+ )
+ 
+@@ -423,12 +390,3 @@
+ 		ClaimAuthTime,
+ 	}
+ }
+-
+-// Refusals an organization-unit-scoped token request can receive. OUAccessRefusal is deliberately
+-// the same answer whether the unit does not exist or the client has no standing in it.
+-const (
+-	OUAccessRefusal = "Client is not authorized for the requested organization unit"
+-
+-	OUScopedGrantRefusal = "The grant type is not supported on the organization unit scoped " +
+-		"token endpoint"
+-)
+--- /tmp/tid/backend/internal/oauth/oauth2/token/service.go	2026-11-02 15:35:43.055625809 +0000
++++ thunderid-engine/internal/oauth/oauth2/token/service.go	2026-11-02 15:23:34.705049216 +0000
+@@ -8,7 +8,6 @@
+ 	"context"
+ 	"errors"
+ 	"fmt"
+-	"net/url"
+ 	"strings"
+ 	"time"
+ 
+@@ -16,7 +15,6 @@
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/dpop"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/granthandlers"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/model"
+-	"github.com/thunder-id/thunderid/internal/oauth/oauth2/tokenservice"
+ 	"github.com/thunder-id/thunderid/internal/oauth/scope"
+ 	sysContext "github.com/thunder-id/thunderid/internal/system/context"
+ 	"github.com/thunder-id/thunderid/internal/system/log"
+@@ -75,11 +73,11 @@
+ 	grantTypeStr := tokenRequest.GrantType
+ 	scopeStr := tokenRequest.Scope
+ 
+-	ts.publishTokenIssuanceStartedEvent(ctx, oauthApp, clientID, grantTypeStr, scopeStr)
++	ts.publishTokenIssuanceStartedEvent(ctx, clientID, grantTypeStr, scopeStr)
+ 
+ 	// Validate grant_type presence.
+ 	if grantTypeStr == "" {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			400, "Missing grant_type parameter", startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            constants.ErrorInvalidRequest,
+@@ -90,7 +88,7 @@
+ 	// Validate grant_type value.
+ 	grantType := providers.GrantType(grantTypeStr)
+ 	if !grantType.IsValid() {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			400, "Invalid grant_type parameter", startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            constants.ErrorUnsupportedGrantType,
+@@ -102,7 +100,7 @@
+ 	grantHandler, handlerErr := ts.grantHandlerProvider.GetGrantHandler(grantType)
+ 	if handlerErr != nil {
+ 		if errors.Is(handlerErr, constants.UnSupportedGrantTypeError) {
+-			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 				400, "Unsupported grant type", startTime)
+ 			return nil, &model.ErrorResponse{
+ 				Error:            constants.ErrorUnsupportedGrantType,
+@@ -110,7 +108,7 @@
+ 			}
+ 		}
+ 		logger.Error(ctx, "Failed to get grant handler", log.Error(handlerErr))
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			500, "Failed to get grant handler", startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            constants.ErrorServerError,
+@@ -120,7 +118,7 @@
+ 
+ 	// Validate grant type against the application.
+ 	if !oauthApp.IsAllowedGrantType(grantType) {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			401, "Client not authorized for grant type", startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            constants.ErrorUnauthorizedClient,
+@@ -128,20 +126,10 @@
+ 		}
+ 	}
+ 
+-	// Other grants carry no authorization details, so the parameter is refused rather than ignored.
+-	if tokenRequest.AuthorizationDetails != "" && !acceptsAuthorizationDetails(grantType) {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
+-			400, "Unsupported authorization_details", startTime)
+-		return nil, &model.ErrorResponse{
+-			Error:            constants.ErrorInvalidAuthorizationDetails,
+-			ErrorDescription: "authorization_details is not supported for this grant type",
+-		}
+-	}
+-
+ 	// Validate the token request via the grant handler.
+ 	tokenError := grantHandler.ValidateGrant(ctx, tokenRequest, oauthApp)
+ 	if tokenError != nil && tokenError.Error != "" {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			400, tokenError.ErrorDescription, startTime)
+ 		return nil, tokenError
+ 	}
+@@ -149,7 +137,7 @@
+ 	// Validate and filter scopes.
+ 	validScopes, scopeError := ts.scopeValidator.ValidateScopes(ctx, tokenRequest.Scope, oauthApp.ClientID)
+ 	if scopeError != nil {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			400, scopeError.ErrorDescription, startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            scopeError.Error,
+@@ -160,20 +148,29 @@
+ 
+ 	dpopErr := ts.verifyDPoPProof(&ctx, oauthApp)
+ 	if dpopErr != nil {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			400, dpopErr.ErrorDescription, startTime)
+ 		return nil, dpopErr
+ 	}
+ 
+ 	// Delegate to the grant handler for token generation.
+-	ctx = tokenservice.WithIssuanceDecisions(ctx)
+ 	tokenRespDTO, tokenError := grantHandler.HandleGrant(ctx, tokenRequest, oauthApp)
+ 	if tokenError != nil {
+-		ts.publishGrantError(ctx, oauthApp, clientID, grantTypeStr, scopeStr, tokenError, startTime)
++		if tokenError.Error != "" {
++			code := 400
++			if tokenError.Error == constants.ErrorServerError {
++				code = 500
++			}
++			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
++				code, tokenError.ErrorDescription, startTime)
++			if tokenError.Error == constants.ErrorServerError {
++				tokenError.ErrorDescription = "Failed to process token request"
++			}
++		}
+ 		return nil, tokenError
+ 	}
+ 	if tokenRespDTO == nil {
+-		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++		publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 			500, "Grant handler returned empty response", startTime)
+ 		return nil, &model.ErrorResponse{
+ 			Error:            constants.ErrorServerError,
+@@ -181,8 +178,11 @@
+ 		}
+ 	}
+ 
+-	// Issue refresh token if applicable.
+-	if (grantType.IssuesRefreshToken() || tokenRespDTO.IssuesRefreshToken) &&
++	// Issue refresh token if applicable. A Native SSO token exchange is a login for the exchanging
++	// client (OpenID Connect Native SSO section 4.3: "the AS will issue a normal Token Response object
++	// containing a refresh_token, access_token and id_token"), so it issues one alongside the
++	// grant types that normally carry a refresh token.
++	if (grantType.IssuesRefreshToken() || tokenRespDTO.NativeSSOSession) &&
+ 		oauthApp.IsAllowedGrantType(providers.GrantTypeRefreshToken) {
+ 		logger.Debug(ctx, "Issuing refresh token for the token request",
+ 			log.String("client_id", clientID), log.String("grant_type", grantTypeStr))
+@@ -190,7 +190,7 @@
+ 		refreshGrantHandler, handlerErr := ts.grantHandlerProvider.GetGrantHandler(providers.GrantTypeRefreshToken)
+ 		if handlerErr != nil {
+ 			logger.Error(ctx, "Failed to get refresh grant handler", log.Error(handlerErr))
+-			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 				500, "Failed to get refresh grant handler", startTime)
+ 			return nil, &model.ErrorResponse{
+ 				Error:            constants.ErrorServerError,
+@@ -201,7 +201,7 @@
+ 		if !ok {
+ 			logger.Error(ctx, "Failed to cast refresh grant handler",
+ 				log.String("client_id", clientID), log.String("grant_type", grantTypeStr))
+-			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantTypeStr, scopeStr,
++			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
+ 				500, "Internal Server Error", startTime)
+ 			return nil, &model.ErrorResponse{
+ 				Error:            constants.ErrorServerError,
+@@ -223,7 +223,11 @@
+ 			0,
+ 		)
+ 		if refreshTokenError != nil && refreshTokenError.Error != "" {
+-			ts.publishGrantError(ctx, oauthApp, clientID, grantTypeStr, scopeStr, refreshTokenError, startTime)
++			publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, clientID, grantTypeStr, scopeStr,
++				500, refreshTokenError.ErrorDescription, startTime)
++			if refreshTokenError.Error == constants.ErrorServerError {
++				refreshTokenError.ErrorDescription = "Failed to process token request"
++			}
+ 			return nil, refreshTokenError
+ 		}
+ 	}
+@@ -231,14 +235,13 @@
+ 	// Build token response.
+ 	scopes := strings.Join(tokenRespDTO.AccessToken.Scopes, " ")
+ 	tokenResponse := &model.TokenResponse{
+-		AccessToken:          tokenRespDTO.AccessToken.Token,
+-		TokenType:            tokenRespDTO.AccessToken.TokenType,
+-		ExpiresIn:            tokenRespDTO.AccessToken.ExpiresIn,
+-		RefreshToken:         tokenRespDTO.RefreshToken.Token,
+-		Scope:                scopes,
+-		IDToken:              tokenRespDTO.IDToken.Token,
+-		AuthorizationDetails: tokenRespDTO.AccessToken.AuthorizationDetails,
+-		DeviceSecret:         tokenRespDTO.DeviceSecret.Token,
++		AccessToken:  tokenRespDTO.AccessToken.Token,
++		TokenType:    tokenRespDTO.AccessToken.TokenType,
++		ExpiresIn:    tokenRespDTO.AccessToken.ExpiresIn,
++		RefreshToken: tokenRespDTO.RefreshToken.Token,
++		Scope:        scopes,
++		IDToken:      tokenRespDTO.IDToken.Token,
++		DeviceSecret: tokenRespDTO.DeviceSecret,
+ 	}
+ 
+ 	// For token exchange, determine the issued_token_type from the request.
+@@ -257,7 +260,7 @@
+ 	logger.Debug(ctx, "Token generated successfully",
+ 		log.String("client_id", clientID), log.String("grant_type", grantTypeStr))
+ 
+-	ts.publishTokenIssuedEvent(ctx, oauthApp, tokenRespDTO, clientID, grantTypeStr, scopes, startTime)
++	ts.publishTokenIssuedEvent(ctx, clientID, grantTypeStr, scopes, startTime)
+ 
+ 	return tokenResponse, nil
+ }
+@@ -285,7 +288,7 @@
+ 	result, err := ts.dpopVerifier.Verify(*ctx, dpop.VerifyParams{
+ 		Proof: proof,
+ 		HTM:   "POST",
+-		HTU:   ts.expectedHTU(*ctx),
++		HTU:   ts.tokenEndpoint,
+ 	})
+ 	if err != nil {
+ 		return &model.ErrorResponse{
+@@ -297,42 +300,8 @@
+ 	return nil
+ }
+ 
+-// expectedHTU is the URI a proof presented at this endpoint has to be bound to.
+-//
+-// The path comes from the request, because one handler serves both the bare and the
+-// organization-unit-scoped endpoint and a proof is bound to the URI it was sent to (RFC 9449
+-// section 4.3). The scheme and host stay those of the configured endpoint: reading them off the
+-// request would trust a Host header the attacker who writes the proof can also set.
+-func (ts *tokenService) expectedHTU(ctx context.Context) string {
+-	path := dpop.GetRequestPath(ctx)
+-	if path == "" {
+-		return ts.tokenEndpoint
+-	}
+-	endpoint, err := url.Parse(ts.tokenEndpoint)
+-	if err != nil {
+-		return ts.tokenEndpoint
+-	}
+-	// A proxy strips any published path prefix before the mux sees the request, so put it back or
+-	// every proof would be compared against a URI the client never called.
+-	prefix, found := strings.CutSuffix(endpoint.EscapedPath(), constants.OAuth2TokenEndpoint)
+-	if !found {
+-		return ts.tokenEndpoint
+-	}
+-	// Parsed rather than assigned: Path holds the decoded form and RawPath the escaped one, so
+-	// assigning an escaped string to Path alone would escape its percent signs a second time.
+-	requested, err := url.Parse(prefix + path)
+-	if err != nil {
+-		return ts.tokenEndpoint
+-	}
+-	endpoint.Path = requested.Path
+-	endpoint.RawPath = requested.RawPath
+-	return endpoint.String()
+-}
+-
+ // publishTokenIssuanceStartedEvent publishes an event indicating that token issuance has started.
+-func (ts *tokenService) publishTokenIssuanceStartedEvent(
+-	ctx context.Context, oauthApp *providers.OAuthClient, clientID, grantType, scope string,
+-) {
++func (ts *tokenService) publishTokenIssuanceStartedEvent(ctx context.Context, clientID, grantType, scope string) {
+ 	if ts.observabilitySvc == nil || !ts.observabilitySvc.IsEnabled() {
+ 		return
+ 	}
+@@ -345,17 +314,13 @@
+ 		WithStatus(providers.StatusInProgress).
+ 		WithData(event.DataKey.ClientID, clientID).
+ 		WithData(event.DataKey.GrantType, grantType).
+-		WithData(event.DataKey.Scope, scope).
+-		WithData(event.DataKey.CorrelationID, sysContext.GetTraceID(ctx))
+-	addAccessingOUData(ctx, evt)
+-	addActorData(evt, oauthApp)
++		WithData(event.DataKey.Scope, scope)
+ 
+ 	ts.observabilitySvc.PublishEvent(ctx, evt)
+ }
+ 
+ func (ts *tokenService) publishTokenIssuedEvent(
+-	ctx context.Context, oauthApp *providers.OAuthClient, tokenRespDTO *model.TokenResponseDTO,
+-	clientID, grantType, scope string, startTime int64,
++	ctx context.Context, clientID, grantType, scope string, startTime int64,
+ ) {
+ 	if ts.observabilitySvc == nil || !ts.observabilitySvc.IsEnabled() {
+ 		return
+@@ -363,13 +328,6 @@
+ 
+ 	duration := time.Now().UnixMilli() - startTime
+ 
+-	// A grant carries a correlation identifier only when it originated in a login flow (via the
+-	// authorization code). Grants issued in a single request correlate on their own trace id.
+-	correlationID := tokenRespDTO.CorrelationID
+-	if correlationID == "" {
+-		correlationID = sysContext.GetTraceID(ctx)
+-	}
+-
+ 	evt := event.NewEvent(
+ 		sysContext.GetTraceID(ctx),
+ 		string(event.EventTypeTokenIssued),
+@@ -379,40 +337,15 @@
+ 		WithData(event.DataKey.ClientID, clientID).
+ 		WithData(event.DataKey.GrantType, grantType).
+ 		WithData(event.DataKey.Scope, scope).
+-		WithData(event.DataKey.CorrelationID, correlationID).
+ 		WithData(event.DataKey.DurationMs, fmt.Sprintf("%d", duration))
+-	addAccessingOUData(ctx, evt)
+-	addActorData(evt, oauthApp)
+-	addSubjectData(evt, &tokenRespDTO.AccessToken)
+ 
+ 	ts.observabilitySvc.PublishEvent(ctx, evt)
+ }
+ 
+-// publishGrantError publishes a failed issuance for an error a grant handler returns, as a server error
+-// when the handler reports one, and hides a server error's description from the client. An error
+-// without a code publishes nothing.
+-func (ts *tokenService) publishGrantError(ctx context.Context, oauthApp *providers.OAuthClient,
+-	clientID, grantType, scope string, errResp *model.ErrorResponse, startTime int64) {
+-	if errResp.Error == "" {
+-		return
+-	}
+-	code := 400
+-	if errResp.Error == constants.ErrorServerError {
+-		code = 500
+-	}
+-	publishTokenIssuanceFailedEvent(ts.observabilitySvc, ctx, oauthApp, clientID, grantType, scope,
+-		code, errResp.ErrorDescription, startTime)
+-	if errResp.Error == constants.ErrorServerError {
+-		errResp.ErrorDescription = "Failed to process token request"
+-	}
+-}
+-
+ // publishTokenIssuanceFailedEvent is a package-level helper shared by tokenService and tokenHandler.
+-// oauthApp is nil when the request failed before the client was resolved.
+ func publishTokenIssuanceFailedEvent(
+ 	svc providers.ObservabilityProvider,
+-	ctx context.Context, oauthApp *providers.OAuthClient,
+-	clientID, grantType, scope string, statusCode int, message string, startTime int64,
++	ctx context.Context, clientID, grantType, scope string, statusCode int, message string, startTime int64,
+ ) {
+ 	if svc == nil || !svc.IsEnabled() {
+ 		return
+@@ -439,64 +372,7 @@
+ 			"type":    errorType,
+ 			"message": message,
+ 		}).
+-		WithData(event.DataKey.CorrelationID, sysContext.GetTraceID(ctx)).
+ 		WithData(event.DataKey.DurationMs, fmt.Sprintf("%d", duration))
+-	addAccessingOUData(ctx, evt)
+-	addActorData(evt, oauthApp)
+ 
+ 	svc.PublishEvent(ctx, evt)
+ }
+-
+-// addAccessingOUData stamps the organization unit a token was requested for. It matters most on a
+-// refusal, which deliberately names none, so the event is where an operator finds out which one a
+-// request was about. The key's presence means the /ou/{ouId} form was used.
+-func addAccessingOUData(ctx context.Context, evt *providers.Event) {
+-	if ouID := sysContext.GetAccessingOUID(ctx); ouID != "" {
+-		evt.WithData(event.DataKey.AccessingOUID, ouID)
+-	}
+-}
+-
+-// addActorData stamps the acting principal onto a token issuance event: the entity category of the
+-// principal that authenticated as the client (agent or app) and its resource ID, which
+-// cross-references the app_id reported by flow events for the same principal. A nil client leaves
+-// the event unchanged.
+-func addActorData(evt *providers.Event, oauthApp *providers.OAuthClient) {
+-	if oauthApp == nil {
+-		return
+-	}
+-	if actorType := event.PrincipalType(string(oauthApp.EntityCategory)); actorType != "" {
+-		evt.WithData(event.DataKey.ActorType, actorType)
+-	}
+-	if oauthApp.ID != "" {
+-		evt.WithData(event.DataKey.EntityID, oauthApp.ID)
+-	}
+-}
+-
+-// addSubjectData stamps the issued token's subject and its delegation relationship onto an event, so
+-// an agent acting for a user is observable as the actor against that user's subject (RFC 8693). The
+-// subject is reported as its entity resource ID, resolved while the token is built: the token's own
+-// sub claim is configurable per application through SubjectAttribute and may be a directly
+-// identifying attribute, which does not belong in the observability sinks. The actor is resolved
+-// under the same rule and omitted when it names no entity, so a delegated issuance whose actor
+-// cannot be identified is still reported as delegated, just without an act_sub.
+-func addSubjectData(evt *providers.Event, accessToken *model.TokenDTO) {
+-	if accessToken == nil {
+-		return
+-	}
+-	if accessToken.SubjectID != "" {
+-		evt.WithData(event.DataKey.Subject, accessToken.SubjectID)
+-		if subjectType := event.PrincipalType(accessToken.SubjectCategory); subjectType != "" {
+-			evt.WithData(event.DataKey.SubjectType, subjectType)
+-		}
+-	}
+-	evt.WithData(event.DataKey.IsDelegated, accessToken.Delegated)
+-	if accessToken.ActorSub != "" {
+-		evt.WithData(event.DataKey.ActorSub, accessToken.ActorSub)
+-	}
+-}
+-
+-// acceptsAuthorizationDetails reports whether the grant type accepts authorization_details.
+-func acceptsAuthorizationDetails(grantType providers.GrantType) bool {
+-	return grantType == providers.GrantTypeClientCredentials || grantType == providers.GrantTypeAuthorizationCode ||
+-		grantType == providers.GrantTypeRefreshToken || grantType == providers.GrantTypeCIBA
+-}
+--- /tmp/tid/backend/internal/oauth/oauth2/token/handler.go	2026-11-02 15:35:43.055625809 +0000
++++ thunderid-engine/internal/oauth/oauth2/token/handler.go	2026-11-02 15:23:34.705049216 +0000
+@@ -12,7 +12,6 @@
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/dpop"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/model"
+ 	sysconst "github.com/thunder-id/thunderid/internal/system/constants"
+-	syscontext "github.com/thunder-id/thunderid/internal/system/context"
+ 	"github.com/thunder-id/thunderid/internal/system/log"
+ 	"github.com/thunder-id/thunderid/internal/system/utils"
+ 	"github.com/thunder-id/thunderid/pkg/thunderidengine/providers"
+@@ -49,7 +48,7 @@
+ 
+ 	// Parse the form data from the request body.
+ 	if err := r.ParseForm(); err != nil {
+-		publishTokenIssuanceFailedEvent(th.observabilitySvc, r.Context(), nil, "", "", "",
++		publishTokenIssuanceFailedEvent(th.observabilitySvc, r.Context(), "", "", "",
+ 			http.StatusBadRequest, err.Error(), startTime)
+ 		utils.WriteJSONError(r.Context(), w, constants.ErrorInvalidRequest,
+ 			"Failed to parse request body", http.StatusBadRequest, nil)
+@@ -59,7 +58,7 @@
+ 	// The DPoP header must appear at most once.
+ 	dpopHeaders := r.Header.Values(constants.HeaderDPoP)
+ 	if len(dpopHeaders) > 1 {
+-		publishTokenIssuanceFailedEvent(th.observabilitySvc, r.Context(), nil, "", "", "",
++		publishTokenIssuanceFailedEvent(th.observabilitySvc, r.Context(), "", "", "",
+ 			http.StatusBadRequest, "Multiple DPoP headers", startTime)
+ 		utils.WriteJSONError(r.Context(), w, constants.ErrorInvalidDPoPProof,
+ 			"Multiple DPoP headers", http.StatusBadRequest, nil)
+@@ -68,9 +67,6 @@
+ 	ctx := r.Context()
+ 	if len(dpopHeaders) == 1 {
+ 		ctx = dpop.WithProof(ctx, dpopHeaders[0])
+-		// The proof is bound to the URI this request was sent to, and one handler serves both the
+-		// bare and the organization-unit-scoped path.
+-		ctx = dpop.WithRequestPath(ctx, r.URL.EscapedPath())
+ 	}
+ 
+ 	// Get authenticated client from context (set by ClientAuthMiddleware).
+@@ -84,36 +80,26 @@
+ 
+ 	// Build the token request domain model from the HTTP form values.
+ 	tokenRequest := &model.TokenRequest{
+-		GrantType:            r.FormValue(constants.RequestParamGrantType),
+-		ClientID:             clientInfo.ClientID,
+-		ClientSecret:         clientInfo.ClientSecret,
+-		Scope:                r.FormValue("scope"),
+-		Username:             r.FormValue("username"),
+-		Password:             r.FormValue("password"),
+-		RefreshToken:         r.FormValue("refresh_token"),
+-		CodeVerifier:         r.FormValue("code_verifier"),
+-		Code:                 r.FormValue("code"),
+-		RedirectURI:          r.FormValue("redirect_uri"),
+-		Resources:            r.Form[constants.RequestParamResource],
+-		SubjectToken:         r.FormValue(constants.RequestParamSubjectToken),
+-		SubjectTokenType:     r.FormValue(constants.RequestParamSubjectTokenType),
+-		ActorToken:           r.FormValue(constants.RequestParamActorToken),
+-		ActorTokenType:       r.FormValue(constants.RequestParamActorTokenType),
+-		RequestedTokenType:   r.FormValue(constants.RequestParamRequestedTokenType),
+-		Audiences:            r.Form[constants.RequestParamAudience],
+-		AuthReqID:            r.FormValue(constants.RequestParamAuthReqID),
+-		Assertion:            r.FormValue(constants.RequestParamAssertion),
+-		AuthorizationDetails: r.FormValue(constants.RequestParamAuthorizationDetails),
+-	}
+-
+-	// Only client_credentials acts for an organization unit.
+-	if syscontext.GetAccessingOUID(ctx) != "" &&
+-		tokenRequest.GrantType != string(providers.GrantTypeClientCredentials) {
+-		logger.Debug(ctx, "Grant type is not available on the organization-unit-scoped endpoint",
+-			log.String("grant_type", tokenRequest.GrantType))
+-		utils.WriteJSONError(r.Context(), w, constants.ErrorInvalidRequest,
+-			constants.OUScopedGrantRefusal, http.StatusBadRequest, nil)
+-		return
++		GrantType:          r.FormValue(constants.RequestParamGrantType),
++		ClientID:           clientInfo.ClientID,
++		ClientSecret:       clientInfo.ClientSecret,
++		Scope:              r.FormValue("scope"),
++		Username:           r.FormValue("username"),
++		Password:           r.FormValue("password"),
++		RefreshToken:       r.FormValue("refresh_token"),
++		CodeVerifier:       r.FormValue("code_verifier"),
++		Code:               r.FormValue("code"),
++		RedirectURI:        r.FormValue("redirect_uri"),
++		Resources:          r.Form[constants.RequestParamResource],
++		SubjectToken:       r.FormValue(constants.RequestParamSubjectToken),
++		SubjectTokenType:   r.FormValue(constants.RequestParamSubjectTokenType),
++		ActorToken:         r.FormValue(constants.RequestParamActorToken),
++		ActorTokenType:     r.FormValue(constants.RequestParamActorTokenType),
++		RequestedTokenType: r.FormValue(constants.RequestParamRequestedTokenType),
++		Audiences:          r.Form[constants.RequestParamAudience],
++		AuthReqID:          r.FormValue(constants.RequestParamAuthReqID),
++		Assertion:          r.FormValue(constants.RequestParamAssertion),
++		DeviceSecret:       r.FormValue("device_secret"),
+ 	}
+ 
+ 	// Delegate all business logic to the token service.
+--- /tmp/tid/backend/internal/oauth/oauth2/model/token.go	2026-11-02 15:35:43.055625809 +0000
++++ thunderid-engine/internal/oauth/oauth2/model/token.go	2026-11-02 15:23:34.705049216 +0000
+@@ -1,15 +1,9 @@
+-// Copyright 2025-2026 The ThunderID Authors
++// Copyright 2025 The ThunderID Authors
+ // SPDX-License-Identifier: Apache-2.0
+ 
+ // Package model defines the data structures used in the OAuth2 module.
+ package model
+ 
+-import (
+-	"encoding/json"
+-
+-	"github.com/thunder-id/thunderid/pkg/thunderidengine/providers"
+-)
+-
+ // TokenRequest represents the OAuth2 token request.
+ type TokenRequest struct {
+ 	GrantType          string   `json:"grant_type"`
+@@ -31,8 +25,12 @@
+ 	Audiences          []string `json:"audiences,omitempty"`
+ 	AuthReqID          string   `json:"auth_req_id,omitempty"`
+ 	Assertion          string   `json:"assertion,omitempty"`
+-	// AuthorizationDetails is the raw RFC 9396 authorization_details parameter.
+-	AuthorizationDetails string `json:"authorization_details,omitempty"`
++	// DeviceSecret is the optional device_secret parameter of an authorization_code or
++	// refresh_token token request (OpenID Connect Native SSO for Mobile Apps 1.0, section 3.3). The
++	// client presents the secret it already holds so the authorization server can rotate it rather
++	// than mint a second, competing secret for the same device.
++	//nolint:gosec // OAuth token request parameter, not a hardcoded credential
++	DeviceSecret string `json:"device_secret,omitempty"`
+ }
+ 
+ // TokenResponse represents the OAuth2 token response.
+@@ -44,9 +42,11 @@
+ 	Scope           string `json:"scope,omitempty"`
+ 	IDToken         string `json:"id_token,omitempty"`
+ 	IssuedTokenType string `json:"issued_token_type,omitempty"`
+-	// AuthorizationDetails carries the granted RFC 9396 authorization details.
+-	AuthorizationDetails json.RawMessage `json:"authorization_details,omitempty"`
+-	DeviceSecret         string          `json:"device_secret,omitempty"`
++	// DeviceSecret is returned by the token endpoint when the authorization request carried the
++	// device_sso scope (OpenID Connect Native SSO for Mobile Apps 1.0, section 3.4) or when a Native
++	// SSO token exchange asks for an updated one.
++	//nolint:gosec // OAuth token response field, not a hardcoded credential
++	DeviceSecret string `json:"device_secret,omitempty"`
+ }
+ 
+ // TokenDTO represents the data transfer object for tokens.
+@@ -67,26 +67,6 @@
+ 	// TokenFamilyID is the token family id (tfid) stamped on the token, carried here so the refresh
+ 	// token issued alongside an access token can be stamped with the same family id.
+ 	TokenFamilyID string
+-	// Delegated reports whether the token was issued on behalf of Subject by another principal, that
+-	// is, whether it carries an act claim. It is tracked separately from ActorSub because an actor
+-	// that cannot be resolved to an entity still delegated: the identifier is withheld, not the fact.
+-	Delegated bool
+-	// ActorSub is the resource ID of the principal acting for Subject, mirroring the token's act.sub
+-	// claim. Set only for delegated (on-behalf-of) issuance, and empty when the actor could not be
+-	// resolved to an entity, as on an exchange whose actor token carries a mapped attribute. Consult
+-	// Delegated, not this field, to tell whether the issuance was delegated at all.
+-	ActorSub string
+-	// SubjectID is the resource ID of the entity the token was issued for. It differs from Subject
+-	// whenever the application maps a subject attribute, where Subject is that attribute's value: the
+-	// resource ID is opaque and stable across applications, so it is what observability reports.
+-	// Empty when the subject could not be resolved to an entity, as on an exchange whose subject token
+-	// carries a mapped attribute.
+-	SubjectID string
+-	// SubjectCategory is the entity category of SubjectID (user, agent or app), resolved while the
+-	// token is built. Empty when it could not be determined, so consumers omit it rather than assume.
+-	SubjectCategory string
+-	// AuthorizationDetails holds the granted RFC 9396 authorization details the token carries.
+-	AuthorizationDetails json.RawMessage
+ }
+ 
+ // TokenResponseDTO represents the data transfer object for token responses.
+@@ -94,27 +74,14 @@
+ 	AccessToken  TokenDTO
+ 	RefreshToken TokenDTO
+ 	IDToken      TokenDTO
+-	// CorrelationID is the correlation identifier of the authorization grant these tokens were issued
+-	// against, when the grant carries one (the login flow's execution id, arriving via the
+-	// authorization code). Reported on the token issuance event so it stitches to the flow's own
+-	// events; never returned to the client.
+-	CorrelationID string
+-	// SessionID is the SSO session id (sid) of the grant, when it has one, so the refresh token issued
+-	// alongside is stamped with it. Access tokens never carry it. Never returned to the client.
+-	SessionID string
+-	// DeviceSecret is the token carrying the SSO sessions the code kept, returned on a code exchange.
+-	DeviceSecret TokenDTO
+-	// IssuesRefreshToken marks a response whose grant path issues a refresh token although its grant
+-	// type does not otherwise, subject to the client allowing the refresh token grant.
+-	IssuesRefreshToken bool
+-	// RefreshableAuthorizationDetails holds the granted details the refresh token keeps: those of reusable types
+-	// still on the version they were granted on. It is never returned to the client.
+-	RefreshableAuthorizationDetails []providers.AuthorizationDetail
+-}
+-
+-// SessionData is one SSO session a client holds: the handle that resumes it, keyed by the identifier of
+-// the flow it belongs to.
+-type SessionData struct {
+-	FlowIdentifier string `json:"flowIdentifier"`
+-	SessionHandle  string `json:"sessionHandle"`
++	// DeviceSecret is the signed-then-encrypted device_secret issued with this response. It is set
++	// only when the device_sso scope was granted; the device_secret and the id_token are always
++	// issued together (OpenID Connect Native SSO section 3.4).
++	//nolint:gosec // OAuth token response field, not a hardcoded credential
++	DeviceSecret string
++	// NativeSSOSession marks a token exchange that redeemed a device_secret. Such a response is a
++	// full Native SSO login (access token, refresh token and id_token for the exchanging client), so
++	// the token service issues a refresh token even though the token_exchange grant does not
++	// normally carry one.
++	NativeSSOSession bool
+ }
+--- /tmp/tid/backend/internal/oauth/init.go	2026-11-02 15:35:43.043625809 +0000
++++ thunderid-engine/internal/oauth/init.go	2026-11-02 15:23:34.697049216 +0000
+@@ -7,11 +7,9 @@
+ import (
+ 	"net/http"
+ 	"slices"
+-	"time"
+ 
+ 	"github.com/thunder-id/thunderid/internal/attributecache"
+ 	"github.com/thunder-id/thunderid/internal/flow/flowexec"
+-	"github.com/thunder-id/thunderid/internal/flow/session"
+ 	oauthconfig "github.com/thunder-id/thunderid/internal/oauth/config"
+ 	"github.com/thunder-id/thunderid/internal/oauth/jwks"
+ 	oauth2authz "github.com/thunder-id/thunderid/internal/oauth/oauth2/authz"
+@@ -24,7 +22,6 @@
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/jti"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/jwksresolver"
+ 	oauth2logout "github.com/thunder-id/thunderid/internal/oauth/oauth2/logout"
+-	"github.com/thunder-id/thunderid/internal/oauth/oauth2/logout/backchannel"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/par"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/revocation"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/token"
+@@ -51,6 +48,7 @@
+ 	attributeCacheSvc attributecache.AttributeCacheServiceInterface,
+ 	authzService providers.AuthorizationProvider,
+ 	resourceService providers.ResourceServerProvider,
++	deviceSecrets providers.DeviceSecretProvider,
+ 	i18nService providers.I18nProvider,
+ 	idpService providers.IDPProvider,
+ 	dpopVerifier dpop.VerifierInterface,
+@@ -58,77 +56,60 @@
+ 	transactioner providers.Transactioner,
+ 	enforcementService revocation.EnforcementServiceInterface,
+ 	revocationSvc revocation.RevocationServiceInterface,
+-	ssoSession session.Service,
+-	ssoTransport session.HandleTransportInterface,
+-	flowProvider providers.FlowProvider,
+-	governance providers.IdentityGovernanceProvider,
+-	authzDetails providers.AuthorizationDetailProvider,
+-	authzDetailTypes providers.AuthorizationDetailTypeProvider,
+ 	cfg oauthconfig.Config,
+-) (tokenservice.TokenValidatorInterface, backchannel.DispatcherInterface, error) {
++) (tokenservice.TokenValidatorInterface, error) {
+ 	jwks.Initialize(mux, runtimeCrypto)
+ 	httpClient := syshttp.NewHTTPClientWithCheckRedirect(func(req *http.Request, _ []*http.Request) error {
+ 		return syshttp.IsSSRFSafeURL(req.URL.String())
+ 	})
+ 	resolver := jwksresolver.Initialize(httpClient)
+ 	scopeValidator := scope.Initialize()
+-	discoveryService := discovery.Initialize(mux, runtimeCrypto, jweService, authzDetailTypes, cfg)
++	discoveryService := discovery.Initialize(mux, runtimeCrypto, jweService, cfg)
+ 	jtiStore := jti.Initialize(runtimeStore)
+ 	// The revocation services are constructed by the service manager, not here: the session service
+ 	// needs the same criteria revoker, and it is wired before the OAuth engine. This registers the
+ 	// RFC 7009 routes against the already-built service.
+ 	if cfg.OAuth.TokenRevocation.IsEnabled() {
+ 		revocation.RegisterRoutes(mux, jwtService, actorProvider, authnProvider, discoveryService,
+-			revocationSvc, jtiStore, governance, cfg.OAuth.ClientAssertion, cfg.JWT.Leeway)
++			revocationSvc, jtiStore, cfg.JWT.Leeway)
+ 	} else {
+ 		enforcementService = nil
+ 		revocationSvc = nil
+ 	}
+ 
+ 	tokenBuilder, tokenValidator := tokenservice.Initialize(
+-		cfg, jwtService, jweService, resolver, idpService, enforcementService, jtiStore, actorProvider, governance)
++		cfg, jwtService, jweService, resolver, idpService, enforcementService, jtiStore)
+ 	parService := par.Initialize(mux, actorProvider, authnProvider, jwtService, discoveryService,
+-		resourceService, dpopVerifier, cfg, runtimeStore, jtiStore, governance, authzDetails)
++		resourceService, dpopVerifier, cfg, runtimeStore, jtiStore)
+ 	oauth2AuthzService, err := oauth2authz.Initialize(mux, actorProvider, resourceService,
+-		jwtService, flowExecService, parService, revocationSvc, ssoSession, ssoTransport, flowProvider,
+-		governance, cfg, runtimeStore, transactioner, jtiStore, authzDetails)
++		jwtService, flowExecService, parService, revocationSvc, cfg, runtimeStore, transactioner)
+ 	if err != nil {
+-		return nil, nil, err
++		return nil, err
+ 	}
+ 
+ 	var cibaService ciba.CIBAServiceInterface
+ 	if len(cfg.OAuth.AllowedGrantTypes) == 0 ||
+ 		slices.Contains(cfg.OAuth.AllowedGrantTypes, string(providers.GrantTypeCIBA)) {
+ 		cibaService = ciba.Initialize(mux, jwtService, actorProvider, authnProvider, flowExecService,
+-			discoveryService, resourceService, runtimeStore, jtiStore, governance, authzDetails, cfg)
++			discoveryService, resourceService, runtimeStore, jtiStore, cfg)
+ 	}
+ 
+-	// A device secret lasts as long as an SSO session can. The embedded engine has no session service,
+-	// so it issues none.
+-	var deviceSecretValidity time.Duration
+-	if ssoSession != nil {
+-		deviceSecretValidity = ssoSession.AbsoluteTimeout()
+-	}
+ 	grantHandlerProvider := granthandlers.Initialize(
+ 		jwtService, oauth2AuthzService, tokenBuilder, tokenValidator,
+ 		attributeCacheSvc, ouService, authzService, actorProvider, resourceService,
+-		cibaService, revocationSvc, revocationSvc, enforcementService, governance, authzDetails,
+-		deviceSecretValidity, cfg)
++		deviceSecrets, cibaService, revocationSvc, revocationSvc, cfg)
+ 
+ 	token.Initialize(mux, jwtService, actorProvider, authnProvider, grantHandlerProvider,
+-		scopeValidator, observabilitySvc, discoveryService, dpopVerifier, jtiStore, ouService, governance, cfg)
++		scopeValidator, observabilitySvc, discoveryService, dpopVerifier, jtiStore, cfg)
+ 	introspect.Initialize(mux, jwtService, actorProvider, authnProvider, discoveryService, tokenValidator,
+-		jtiStore, governance, cfg.OAuth.ClientAssertion, cfg.JWT.Leeway)
++		jtiStore, cfg.JWT.Leeway)
+ 	userinfo.Initialize(mux, jwtService, jweService, resolver,
+ 		tokenValidator, actorProvider, attributeCacheSvc,
+-		discoveryService, dpopVerifier, governance, cfg)
++		discoveryService, dpopVerifier, cfg)
+ 	callback.Initialize(mux, oauth2AuthzService, cibaService, cfg)
+ 
+ 	if cfg.OAuth.Logout.IsEnabled() {
+ 		oauth2logout.Initialize(mux, jwtService, actorProvider, flowExecService, runtimeStore, cfg)
+ 	}
+-	// Sessions also end without the logout endpoint, such as on user deletion, so delivery follows
+-	// only its own flag.
+-	dispatcher := backchannel.Initialize(tokenBuilder, actorProvider, observabilitySvc, cfg)
+-	return tokenValidator, dispatcher, nil
++	return tokenValidator, nil
+ }
+--- /tmp/tid/backend/pkg/thunderidengine/engine.go	2026-11-02 15:35:43.095625809 +0000
++++ thunderid-engine/pkg/thunderidengine/engine.go	2026-11-02 15:23:34.729049216 +0000
+@@ -12,11 +12,9 @@
+ 	"net/http"
+ 	"time"
+ 
+-	"github.com/thunder-id/thunderid/internal/agentmgtprovider"
+ 	"github.com/thunder-id/thunderid/internal/attributecache"
+ 	"github.com/thunder-id/thunderid/internal/authn/assert"
+ 	authnprovidermgr "github.com/thunder-id/thunderid/internal/authnprovider/manager"
+-	authzdetailexec "github.com/thunder-id/thunderid/internal/authzdetail/exec"
+ 	flowconfig "github.com/thunder-id/thunderid/internal/flow/config"
+ 	"github.com/thunder-id/thunderid/internal/flow/core"
+ 	"github.com/thunder-id/thunderid/internal/flow/executor"
+@@ -29,7 +27,6 @@
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/dpop"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/jti"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/revocation"
+-	"github.com/thunder-id/thunderid/internal/oauth/oauth2/tokenservice"
+ 	"github.com/thunder-id/thunderid/internal/runtimestore"
+ 	"github.com/thunder-id/thunderid/internal/system/cache"
+ 	systemconfig "github.com/thunder-id/thunderid/internal/system/config"
+@@ -41,8 +38,8 @@
+ 	"github.com/thunder-id/thunderid/internal/system/kmprovider"
+ 	"github.com/thunder-id/thunderid/internal/system/kmprovider/defaultkm/pki"
+ 	"github.com/thunder-id/thunderid/internal/system/log"
+-	"github.com/thunder-id/thunderid/internal/usermgtprovider"
+ 	"github.com/thunder-id/thunderid/pkg/thunderidengine/common"
++	"github.com/thunder-id/thunderid/pkg/thunderidengine/config"
+ 	engineconfig "github.com/thunder-id/thunderid/pkg/thunderidengine/config"
+ 	"github.com/thunder-id/thunderid/pkg/thunderidengine/providers"
+ )
+@@ -145,75 +142,29 @@
+ 
+ 	// Initialize flow core services.
+ 	flowConfig := flowconfig.Config{
+-		Flow:        engineCtx.flowConfig,
+-		TokenLeeway: time.Duration(engineCtx.jwtConfig.Leeway) * time.Second,
++		Flow: engineCtx.flowConfig,
+ 	}
+ 	flowFactory, graphCache := core.Initialize(engineCtx.cacheManager)
+ 	engineCtx.flowFactory = flowFactory
+-	if engineCtx.userMgtProvider == nil {
+-		engineCtx.userMgtProvider = usermgtprovider.NewDisabledUserMgtProvider()
+-	}
+-	if engineCtx.agentMgtProvider == nil {
+-		engineCtx.agentMgtProvider = agentmgtprovider.NewDisabledAgentMgtProvider()
+-	}
+-	if engineCtx.identityGovernance == nil {
+-		logger.Debug(ctx, "No identity governance provider is set, so account suspensions and locks are not enforced")
+-	}
+-	oauthConfig := oauthconfig.Config{
+-		DeploymentID:               engineCtx.serverConfig.Identifier,
+-		RuntimeTransientDBType:     engineCtx.runtimeTransientDBType,
+-		BaseURL:                    engineconfig.GetServerURL(&engineCtx.serverConfig),
+-		JWT:                        engineCtx.jwtConfig,
+-		OAuth:                      engineCtx.oauthConfig,
+-		GateClient:                 engineCtx.gateClientConfig,
+-		EnableOUQualifiedEndpoints: engineCtx.serverConfig.EnableOUQualifiedEndpoints,
+-	}
+-	// With no SSO session store there is no session termination to deliver, so back-channel logout is
+-	// off: no dispatcher is built and discovery does not advertise it.
+-	backchannelOff := false
+-	oauthConfig.OAuth.Logout.Backchannel.Enabled = &backchannelOff
+-
+-	if engineCtx.authorizationDetailTypes == nil {
+-		logger.Debug(ctx,
+-			"No authorization details type provider is set, so every requested authorization detail is refused")
+-	}
+-	if engineCtx.authzDetailProvider == nil {
+-		engineCtx.authzDetailProvider = authzdetailexec.Initialize(engineCtx.authorizationDetailTypes,
+-			engineCtx.oauthConfig.AuthorizationDetails.ProcessorTimeoutOrDefault())
+-	}
+ 	execDeps := executor.ExecutorDependencies{
+-		FlowFactory:        engineCtx.flowFactory,
+-		AttributeCacheSvc:  engineCtx.attributeCacheService,
+-		AuthZService:       engineCtx.authzProvider,
+-		ConsentEnforcer:    engineCtx.consentProvider,
+-		AuthnProvider:      authnProviderManager,
+-		OUService:          engineCtx.ouProvider,
+-		IDPService:         engineCtx.idpProvider,
+-		JWTService:         engineCtx.jwtService,
+-		AuthAssertGen:      engineCtx.authAssertGen,
+-		ResourceService:    engineCtx.resourceProvider,
+-		UserMgtProvider:    engineCtx.userMgtProvider,
+-		AgentMgtProvider:   engineCtx.agentMgtProvider,
+-		ObservabilitySvc:   engineCtx.observabilitySvc,
+-		IdentityGovernance: engineCtx.identityGovernance,
+-		ArtifactLifetime: func(client *providers.OAuthClient) time.Duration {
+-			return tokenservice.ArtifactLifetime(oauthConfig, client)
+-		},
+-		AuthzDetailProvider: engineCtx.authzDetailProvider,
++		FlowFactory:       engineCtx.flowFactory,
++		AttributeCacheSvc: engineCtx.attributeCacheService,
++		AuthZService:      engineCtx.authzProvider,
++		ConsentEnforcer:   engineCtx.consentProvider,
++		AuthnProvider:     authnProviderManager,
++		JWTService:        engineCtx.jwtService,
++		AuthAssertGen:     engineCtx.authAssertGen,
++		ResourceService:   engineCtx.resourceProvider,
+ 	}
+ 	interceptorDeps := interceptor.InterceptorDependencies{
+ 		FlowFactory:    engineCtx.flowFactory,
+ 		CaptchaService: engineCtx.captchaValidationProvider,
+ 	}
+ 
+-	engineCtx.execRegistry, err = executor.Initialize(execDeps, flowConfig)
++	engineCtx.execRegistry, err = executor.Initialize(execDeps, flowConfig.Flow)
+ 	if err != nil {
+ 		logger.Fatal(ctx, "Failed to register flow executors", log.Error(err))
+ 	}
+-	err = executor.SetActorProvider(engineCtx.execRegistry, engineCtx.actorProvider)
+-	if err != nil {
+-		logger.Fatal(ctx, "Failed to inject the actor provider into the flow executors", log.Error(err))
+-	}
+ 	err = engineCtx.applyCustomExecutors()
+ 	if err != nil {
+ 		logger.Fatal(ctx, "Failed to apply custom executors", log.Error(err))
+@@ -230,19 +181,26 @@
+ 	engineCtx.flowExecService, err = flowexec.Initialize(mux, engineCtx.flowProvider, engineCtx.actorProvider,
+ 		engineCtx.execRegistry, engineCtx.interceptorRegistry, engineCtx.observabilitySvc,
+ 		engineCtx.runtimeCryptoSvc, engineCtx.attestationProvider, engineCtx.graphBuilder,
+-		engineCtx.jwtService, engineCtx.runtimeStoreProvider, engineCtx.transactioner, nil, nil,
+-		engineCtx.identityGovernance, nil, flowConfig)
++		engineCtx.jwtService, engineCtx.runtimeStoreProvider, engineCtx.transactioner, nil, flowConfig)
+ 	if err != nil {
+ 		logger.Fatal(ctx, "Failed to initialize flow execution service", log.Error(err))
+ 	}
+ 
++	oauthConfig := oauthconfig.Config{
++		DeploymentID:           engineCtx.serverConfig.Identifier,
++		RuntimeTransientDBType: engineCtx.runtimeTransientDBType,
++		BaseURL:                config.GetServerURL(&engineCtx.serverConfig),
++		JWT:                    engineCtx.jwtConfig,
++		OAuth:                  engineCtx.oauthConfig,
++		GateClient:             engineCtx.gateClientConfig,
++	}
++
+ 	engineCtx.dpopVerifier = dpop.Initialize(oauthConfig, jti.Initialize(engineCtx.runtimeStoreProvider),
+ 		engineCtx.runtimeCryptoSvc)
+-	revocationEnforcer, revocationService, err := revocation.Initialize(oauthConfig, engineCtx.jwtService,
+-		engineCtx.observabilitySvc)
+-	if err != nil {
+-		logger.Fatal(ctx, "Failed to initialize revocation service", log.Error(err))
+-	}
++	tokenFamilyRevocationTTL := time.Duration(engineCtx.oauthConfig.RefreshToken.ValidityPeriod) * time.Second
++	revocationEnforcer, revocationService := revocation.Initialize(engineCtx.jwtService,
++		engineCtx.observabilitySvc, tokenFamilyRevocationTTL,
++		engineCtx.oauthConfig.Revocation.TokenFamily.OnExplicitRevokeEnabled())
+ 
+ 	// CORS origins come from the engine's static OriginConfig; unlike the full server there is no
+ 	// server-config store to back a dynamic matcher. An empty config leaves CORS disabled (matcher
+@@ -259,15 +217,12 @@
+ 	// resource provider is passed undecorated. Implicit no-resource requests that carry permission
+ 	// scopes are rejected (the provider resolves no server for an empty identifier); OIDC-only or
+ 	// scopeless requests do not need resource-server binding.
+-	_, _, err = oauth.Initialize(mux, engineCtx.actorProvider, authnProviderManager, engineCtx.jwtService,
++	_, err = oauth.Initialize(mux, engineCtx.actorProvider, authnProviderManager, engineCtx.jwtService,
+ 		engineCtx.jweService, engineCtx.flowExecService, engineCtx.observabilitySvc, engineCtx.runtimeCryptoSvc,
+ 		engineCtx.ouProvider, engineCtx.attributeCacheService, engineCtx.authzProvider, engineCtx.resourceProvider,
++		engineCtx.deviceSecretProvider,
+ 		engineCtx.i18nProvider, engineCtx.idpProvider, engineCtx.dpopVerifier, engineCtx.runtimeStoreProvider,
+-		engineCtx.transactioner, revocationEnforcer, revocationService,
+-		// The embedded engine has no SSO session store or SSO handle transport, so prompt=none keeps
+-		// answering login_required rather than consulting a session.
+-		nil, nil, engineCtx.flowProvider, engineCtx.identityGovernance, engineCtx.authzDetailProvider,
+-		engineCtx.authorizationDetailTypes, oauthConfig)
++		engineCtx.transactioner, revocationEnforcer, revocationService, oauthConfig)
+ 	if err != nil {
+ 		logger.Fatal(ctx, "Failed to initialize OAuth services", log.Error(err))
+ 	}
+@@ -416,8 +371,7 @@
+ 	originConfig           engineconfig.OriginConfig
+ 
+ 	actorProvider             providers.ActorProvider
+-	userMgtProvider           providers.UserMgtProvider
+-	agentMgtProvider          providers.AgentMgtProvider
++	deviceSecretProvider      providers.DeviceSecretProvider
+ 	defaultAuthnProvider      providers.AuthnProviderInterface
+ 	customAuthnProviders      map[string]providers.CustomAuthnProvider
+ 	resourceProvider          providers.ResourceServerProvider
+@@ -427,14 +381,11 @@
+ 	i18nProvider              providers.I18nProvider
+ 	idpProvider               providers.IDPProvider
+ 	consentProvider           providers.ConsentProvider
+-	authorizationDetailTypes  providers.AuthorizationDetailTypeProvider
+-	authzDetailProvider       providers.AuthorizationDetailProvider
+ 	customExecutors           map[string]providers.Executor
+ 	observabilitySvc          providers.ObservabilityProvider
+ 	authzProvider             providers.AuthorizationProvider
+ 	attestationProvider       providers.AttestationProvider
+ 	captchaValidationProvider providers.CaptchaValidationProvider
+-	identityGovernance        providers.IdentityGovernanceProvider
+ 
+ 	transactioner        providers.Transactioner
+ 	runtimeStoreProvider providers.RuntimeStoreProvider
+@@ -518,18 +469,13 @@
+ 	return func(c *engineContext) { c.actorProvider = provider }
+ }
+ 
+-// WithUserMgtProvider supplies the user management provider. Omitting it leaves user provisioning
+-// disabled: runtime capabilities that provision users then fail with ErrorUserProvisioningDisabled
+-// rather than the engine refusing to start.
+-func WithUserMgtProvider(provider providers.UserMgtProvider) Option {
+-	return func(c *engineContext) { c.userMgtProvider = provider }
+-}
+-
+-// WithAgentMgtProvider supplies the agent management provider. Omitting it leaves agent provisioning
+-// disabled: runtime capabilities that provision agents then fail with ErrorAgentProvisioningDisabled
+-// rather than the engine refusing to start.
+-func WithAgentMgtProvider(provider providers.AgentMgtProvider) Option {
+-	return func(c *engineContext) { c.agentMgtProvider = provider }
++// WithDeviceSecretProvider registers the provider that issues and validates the device_secret used by
++// OpenID Connect Native SSO for Mobile Apps 1.0. Without it the engine still serves every other
++// flow, but authorization requests carrying device_sso fail at the token endpoint and Native SSO
++// token exchange requests are rejected. Supplying the option enables the device_sso scope, device
++// secret issuance (with ds_hash/sid id_token binding) and the device-secret token exchange profile.
++func WithDeviceSecretProvider(provider providers.DeviceSecretProvider) Option {
++	return func(c *engineContext) { c.deviceSecretProvider = provider }
+ }
+ 
+ // WithDefaultAuthnProvider supplies the default authentication provider.
+@@ -572,19 +518,6 @@
+ 	return func(c *engineContext) { c.i18nProvider = provider }
+ }
+ 
+-// WithAuthorizationDetailTypeProvider supplies the authorization details type registry. Without it,
+-// requests carrying authorization_details are refused.
+-func WithAuthorizationDetailTypeProvider(provider providers.AuthorizationDetailTypeProvider) Option {
+-	return func(c *engineContext) { c.authorizationDetailTypes = provider }
+-}
+-
+-// WithAuthorizationDetailProvider replaces the authorization details runtime: validation, preparation, processing,
+-// refresh filtering and token-endpoint narrowing. A replacement must refuse types without a processor on
+-// client_credentials (RAR-1024), return only requested, admitted details, and narrow only within field policies.
+-func WithAuthorizationDetailProvider(provider providers.AuthorizationDetailProvider) Option {
+-	return func(c *engineContext) { c.authzDetailProvider = provider }
+-}
+-
+ // WithIDPProvider supplies the IDP provider.
+ func WithIDPProvider(provider providers.IDPProvider) Option {
+ 	return func(c *engineContext) { c.idpProvider = provider }
+@@ -629,12 +562,6 @@
+ 	}
+ }
+ 
+-// WithIdentityGovernanceProvider supplies optional identity governance.
+-// Omitting this option or passing nil disables governance checks and lifecycle operations.
+-func WithIdentityGovernanceProvider(provider providers.IdentityGovernanceProvider) Option {
+-	return func(c *engineContext) { c.identityGovernance = provider }
+-}
+-
+ // WithAttestationProvider supplies the Attestation provider.
+ func WithAttestationProvider(provider providers.AttestationProvider) Option {
+ 	return func(c *engineContext) { c.attestationProvider = provider }
+--- /tmp/tid/backend/cmd/server/servicemanager.go	2026-11-02 15:35:42.971625809 +0000
++++ thunderid-engine/cmd/server/servicemanager.go	2026-11-02 15:23:34.677049216 +0000
+@@ -11,18 +11,14 @@
+ 	"strings"
+ 	"time"
+ 
+-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+-
+ 	"github.com/thunder-id/thunderid/internal/actorprovider"
+ 	"github.com/thunder-id/thunderid/internal/agent"
+-	"github.com/thunder-id/thunderid/internal/agentmgtprovider"
+ 	"github.com/thunder-id/thunderid/internal/application"
+ 	"github.com/thunder-id/thunderid/internal/attestation"
+ 	"github.com/thunder-id/thunderid/internal/attributecache"
+ 	"github.com/thunder-id/thunderid/internal/authn"
+ 	authnAssert "github.com/thunder-id/thunderid/internal/authn/assert"
+ 	authncm "github.com/thunder-id/thunderid/internal/authn/common"
+-	authnconfig "github.com/thunder-id/thunderid/internal/authn/config"
+ 	authnConsent "github.com/thunder-id/thunderid/internal/authn/consent"
+ 	"github.com/thunder-id/thunderid/internal/authn/github"
+ 	"github.com/thunder-id/thunderid/internal/authn/google"
+@@ -36,14 +32,9 @@
+ 	authnprovidermgr "github.com/thunder-id/thunderid/internal/authnprovider/manager"
+ 	"github.com/thunder-id/thunderid/internal/authnprovider/restprovider"
+ 	"github.com/thunder-id/thunderid/internal/authz"
+-	authzdetailexec "github.com/thunder-id/thunderid/internal/authzdetail/exec"
+-	authzdetailmgt "github.com/thunder-id/thunderid/internal/authzdetail/mgt"
+ 	"github.com/thunder-id/thunderid/internal/authzen"
+ 	"github.com/thunder-id/thunderid/internal/cert"
+-	"github.com/thunder-id/thunderid/internal/cimd"
+ 	"github.com/thunder-id/thunderid/internal/connection"
+-	"github.com/thunder-id/thunderid/internal/connection/authzenpdp"
+-	"github.com/thunder-id/thunderid/internal/connection/httpconnection"
+ 	"github.com/thunder-id/thunderid/internal/consent"
+ 	layoutmgt "github.com/thunder-id/thunderid/internal/design/layout/mgt"
+ 	"github.com/thunder-id/thunderid/internal/design/resolve"
+@@ -60,32 +51,22 @@
+ 	"github.com/thunder-id/thunderid/internal/flow/interceptor"
+ 	flowmgt "github.com/thunder-id/thunderid/internal/flow/mgt"
+ 	flowsession "github.com/thunder-id/thunderid/internal/flow/session"
+-	"github.com/thunder-id/thunderid/internal/gateway"
+ 	"github.com/thunder-id/thunderid/internal/group"
+-	"github.com/thunder-id/thunderid/internal/identitygovernance"
+-	"github.com/thunder-id/thunderid/internal/identitygovernanceprovider"
+ 	"github.com/thunder-id/thunderid/internal/idp"
+ 	"github.com/thunder-id/thunderid/internal/inboundclient"
+ 	"github.com/thunder-id/thunderid/internal/notification"
+-	notificationconfig "github.com/thunder-id/thunderid/internal/notification/config"
+-	"github.com/thunder-id/thunderid/internal/notificationtemplate"
+ 	"github.com/thunder-id/thunderid/internal/oauth"
+ 	oauthconfig "github.com/thunder-id/thunderid/internal/oauth/config"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/dcr"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/dpop"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/jti"
+-	"github.com/thunder-id/thunderid/internal/oauth/oauth2/logout/backchannel"
+ 	"github.com/thunder-id/thunderid/internal/oauth/oauth2/revocation"
+-	"github.com/thunder-id/thunderid/internal/oauth/oauth2/tokenservice"
+ 	"github.com/thunder-id/thunderid/internal/openid4vci"
+ 	"github.com/thunder-id/thunderid/internal/ou"
+ 	"github.com/thunder-id/thunderid/internal/resource"
+ 	"github.com/thunder-id/thunderid/internal/role"
+ 	"github.com/thunder-id/thunderid/internal/runtimestore"
+-	"github.com/thunder-id/thunderid/internal/scim"
+-	scimconfig "github.com/thunder-id/thunderid/internal/scim/config"
+ 	"github.com/thunder-id/thunderid/internal/serverconfig"
+-	"github.com/thunder-id/thunderid/internal/sharing"
+ 	"github.com/thunder-id/thunderid/internal/system/cache"
+ 	"github.com/thunder-id/thunderid/internal/system/cmodels"
+ 	"github.com/thunder-id/thunderid/internal/system/config"
+@@ -94,9 +75,9 @@
+ 	"github.com/thunder-id/thunderid/internal/system/csp"
+ 	dbprovider "github.com/thunder-id/thunderid/internal/system/database/provider"
+ 	declarativeresource "github.com/thunder-id/thunderid/internal/system/declarative_resource"
++	"github.com/thunder-id/thunderid/internal/system/email"
+ 	"github.com/thunder-id/thunderid/internal/system/export"
+ 	healthcheckservice "github.com/thunder-id/thunderid/internal/system/healthcheck/service"
+-	httpservice "github.com/thunder-id/thunderid/internal/system/http"
+ 	i18nmgt "github.com/thunder-id/thunderid/internal/system/i18n/mgt"
+ 	"github.com/thunder-id/thunderid/internal/system/importer"
+ 	"github.com/thunder-id/thunderid/internal/system/jose"
+@@ -105,16 +86,13 @@
+ 	"github.com/thunder-id/thunderid/internal/system/kmprovider"
+ 	"github.com/thunder-id/thunderid/internal/system/kmprovider/defaultkm/pki"
+ 	"github.com/thunder-id/thunderid/internal/system/log"
+-
+ 	"github.com/thunder-id/thunderid/internal/system/mcp"
+ 	"github.com/thunder-id/thunderid/internal/system/observability"
+ 	"github.com/thunder-id/thunderid/internal/system/resourcedependency"
+-	"github.com/thunder-id/thunderid/internal/system/secretresolver"
+ 	"github.com/thunder-id/thunderid/internal/system/services"
+ 	"github.com/thunder-id/thunderid/internal/system/sysauthz"
++	"github.com/thunder-id/thunderid/internal/system/template"
+ 	"github.com/thunder-id/thunderid/internal/user"
+-	"github.com/thunder-id/thunderid/internal/usermgtprovider"
+-	"github.com/thunder-id/thunderid/internal/variablestore"
+ 	"github.com/thunder-id/thunderid/internal/vc/credential"
+ 	"github.com/thunder-id/thunderid/internal/vc/presentation"
+ 	"github.com/thunder-id/thunderid/pkg/thunderidengine/providers"
+@@ -130,8 +108,7 @@
+ // to the number of services. Eventhough it has many branching statements, almost all are early exits so cognitive
+ // complexity is low.
+ func registerServices(mux *http.ServeMux, cacheManager cache.CacheManagerInterface) (
+-	jwt.JWTServiceInterface, kmprovider.RuntimeCryptoProvider, importer.ImportServiceInterface, *mcpsdk.Server,
+-	backchannel.DispatcherInterface, identitygovernance.LockNotifierInterface) {
++	jwt.JWTServiceInterface, kmprovider.RuntimeCryptoProvider, importer.ImportServiceInterface) {
+ 	logger := log.GetLogger()
+ 
+ 	// Service registration runs during application startup, outside any request.
+@@ -162,9 +139,7 @@
+ 	observabilitySvc = observability.Initialize(config.GetServerRuntime().Config.Observability)
+ 
+ 	// Initialize MCP server early so packages initializing below can register tools.
+-	// Route mounting (mcp.Initialize) happens later in main(), once the token-revocation enforcer
+-	// exists — mcp.DefaultGuard needs it to reject revoked tokens the same way the REST gate does.
+-	mcpServer := mcp.NewServer()
++	mcpServer := mcp.Initialize(mux, jwtService)
+ 
+ 	// List to collect exporters from each package
+ 	var exporters []declarativeresource.ResourceExporter
+@@ -175,15 +150,10 @@
+ 	// Add to exporters list (must be done after initializing list)
+ 	exporters = append(exporters, i18nExporter)
+ 
+-	// Initialize the variable store. It takes the config crypto provider directly, since that is
+-	// what seals a secret before it reaches the database.
+-	_, references := variablestore.Initialize(mux, configCryptoSvc, cacheManager)
+-
+ 	ouAuthzService, err := sysauthz.Initialize()
+ 	fatalOnError(ctx, logger, err, "Failed to initialize system authorization service")
+ 
+-	ouService, ouHierarchyResolver, ouEnumerator, ouExporter, err := ou.Initialize(
+-		mux, mcpServer, cacheManager, ouAuthzService)
++	ouService, ouHierarchyResolver, ouExporter, err := ou.Initialize(mux, mcpServer, cacheManager, ouAuthzService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize OrganizationUnitService")
+ 	exporters = append(exporters, ouExporter)
+ 
+@@ -192,11 +162,6 @@
+ 	// would arise if sysauthz were to directly import the ou package.
+ 	ouAuthzService.SetOUHierarchyResolver(ouHierarchyResolver)
+ 
+-	// Initialized ahead of the resource types it shares, because each registers itself on startup.
+-	sharingService, err := sharing.Initialize(cacheManager, ouHierarchyResolver, ouEnumerator,
+-		runtime.Config.ResourceSharing.AllowChildOUCrossTreeSharing)
+-	fatalOnError(ctx, logger, err, "Failed to initialize SharingService")
+-
+ 	hashCfg, err := buildHashConfig()
+ 	fatalOnError(ctx, logger, err, "Failed to build HashService config")
+ 	hashService, err := cryptolib.Initialize(hashCfg)
+@@ -210,117 +175,31 @@
+ 	exporters = append(exporters, agentTypeExporter)
+ 
+ 	// Initialize entity service
+-	entityService, err := entity.Initialize(cacheManager, hashService, entityTypeService, ouService,
+-		sharingService)
++	entityService, err := entity.Initialize(cacheManager, hashService, entityTypeService, ouService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize EntityService")
+ 
+ 	// Initialize entity provider
+ 	entityProvider := entityprovider.InitializeEntityProvider(entityService)
+ 
+-	// The notification services are built before governance, which sends the lock email through them.
+-	notifSenderMgtSvc, notifOTPService, notifSenderSvc, notificationConfigHandler, err :=
+-		notification.Initialize(jwtService, notificationconfig.FromServerRuntime(), ouService)
+-	fatalOnError(ctx, logger, err, "Failed to initialize NotificationService")
+-
+-	notifTemplateSvc, notifTemplateRenderer, notifTemplateExporter, err :=
+-		notificationtemplate.Initialize(mux, cacheManager, ouService, i18nService)
+-	fatalOnError(ctx, logger, err, "Failed to initialize NotificationTemplateService")
+-	exporters = append(exporters, notifTemplateExporter)
+-
+-	// The accountAccess handler is built over the deployment policy, which must be valid on its own.
+-	governanceCfg := identitygovernance.FromServerRuntime()
+-	err = governanceCfg.Validate()
+-	fatalOnError(ctx, logger, err, "Invalid account_access configuration")
+-
+-	authZENPDPService, err := authzenpdp.Initialize(runtime.Config.AuthZENPDP, entityTypeService, ouService)
+-	fatalOnError(ctx, logger, err, "Failed to initialize AuthZENPDPService")
+-
+-	resourceService, resourceExporter, err := resource.Initialize(mux, ouService, authZENPDPService, nil)
+-	fatalOnError(ctx, logger, err, "Failed to initialize Resource Service")
+-	exporters = append(exporters, resourceExporter)
+-
+-	// Create the flow server-config handler early so it can be registered before serverconfig is
+-	// initialized. The handle-existence validator is injected in a second phase after flowMgtService
+-	// is available.
+-	flowConfigHandler := flowmgt.NewFlowConfigHandler()
+-
+-	// Initialize server-wide configuration after its handler dependencies and before the services that
+-	// read it.
+-	serverConfigHandlers := map[serverconfig.ConfigName]serverconfig.ServerConfigHandlerInterface{
+-		serverconfig.ConfigNameCORS:                  cors.OriginHandler{},
+-		serverconfig.ConfigNameDefaultResourceServer: resource.NewDefaultResourceServerConfigHandler(resourceService),
+-		serverconfig.ConfigNameSession:               flowsession.ConfigHandler{},
+-		serverconfig.ConfigNameFlow:                  flowConfigHandler,
+-		serverconfig.ConfigNameCSP:                   csp.PolicyHandler{},
+-		serverconfig.ConfigNameAccountAccess:         identitygovernance.NewAccountAccessHandler(governanceCfg),
+-		serverconfig.ConfigNameNotification:          notificationConfigHandler,
+-	}
+-	serverConfigService, serverConfigExporter, err := serverconfig.Initialize(mux, cacheManager, serverConfigHandlers,
+-		observabilitySvc)
+-	fatalOnError(ctx, logger, err, "Failed to initialize server config service")
+-	exporters = append(exporters, serverConfigExporter)
+-
+-	// CORS origins come from the server-config cors section.
+-	cors.InitializeDynamicMatcher(serverConfigService)
+-
+-	// Decorate the resource provider so an empty identifier resolves the configured default resource
+-	// server. Keeps the default-resource-server policy server-side: OAuth, CIBA, PAR, grant handlers,
+-	// and the flow executor depend only on providers.ResourceServerProvider, not on serverConfigService.
+-	// The base resourceService is still used for resource-management APIs and server-config validation.
+-	resourceServerProvider := resource.NewDefaultAwareResourceServerProvider(resourceService, serverConfigService)
+-
+-	// Initialize authorization details type management and processing.
+-	authzDetailMgtService, authzDetailExporter, err := authzdetailmgt.Initialize(mux, mcpServer, nil)
+-	fatalOnError(ctx, logger, err, "Failed to initialize AuthorizationDetailMgtService")
+-	exporters = append(exporters, authzDetailExporter)
+-	authzDetailService := authzdetailexec.Initialize(authzDetailMgtService,
+-		runtime.Config.OAuth.AuthorizationDetails.ProcessorTimeoutOrDefault())
+-
+-	// The security-headers middleware reads the deny-first CSP policy from the server-config csp section.
+-	csp.InitializeConfigReader(serverConfigService)
+-
+-	// Identity governance reads the accountAccess section and the lock email's default sender through
+-	// the server-config service.
+-	governanceService, lockNotifier, err := identitygovernance.Initialize(
+-		entityService, serverConfigService, governanceCfg, &identitygovernance.NotificationDependencies{
+-			Templates:   notifTemplateRenderer,
+-			Senders:     notifSenderSvc,
+-			EntityTypes: entityTypeService,
+-		}, ouAuthzService, observabilitySvc)
+-	fatalOnError(ctx, logger, err, "Failed to initialize IdentityGovernanceService")
+-	governanceProvider := identitygovernanceprovider.Initialize(governanceService,
+-		runtime.Config.IdentityGovernanceProvider)
+-
+ 	userService, ouUserResolver, userExporter, err := user.Initialize(
+-		mux, entityService, ouService, entityTypeService, ouAuthzService, governanceService, sharingService, nil,
++		mux, entityService, ouService, entityTypeService, ouAuthzService,
+ 	)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize UserService")
+ 	exporters = append(exporters, userExporter)
+ 
+-	// Initialize user management provider
+-	userMgtProvider := usermgtprovider.Initialize(userService)
+-
+ 	groupService, ouGroupResolver, groupExporter, err := group.Initialize(
+ 		mux, dbprovider.GetDBProvider(), ouService, entityService, entityTypeService, ouAuthzService,
+ 	)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize GroupService")
+ 	exporters = append(exporters, groupExporter)
+ 
+-	httpConnectionService, err := httpconnection.Initialize(runtime.Config.HTTPConnection, ouService)
+-	fatalOnError(ctx, logger, err, "Failed to initialize HTTPConnectionService")
+-
+-	// Initialize SCIM service.
+-	scim.Initialize(
+-		mux,
+-		userService,
+-		entityTypeService,
+-		groupService,
+-		scimconfig.FromServerRuntime(),
+-	)
++	resourceService, resourceExporter, err := resource.Initialize(mux, ouService)
++	fatalOnError(ctx, logger, err, "Failed to initialize Resource Service")
++	exporters = append(exporters, resourceExporter)
+ 
+ 	roleService, roleAssignmentService, ouRoleResolver, roleExporter, err := role.Initialize(
+ 		mux, entityService, groupService, ouService, resourceService, entityTypeService, ouAuthzService,
+-		sharingService)
++	)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize RoleService")
+ 	exporters = append(exporters, roleExporter)
+ 
+@@ -329,28 +208,26 @@
+ 	ouService.SetOUGroupResolver(ouGroupResolver)
+ 	ouService.SetOURoleResolver(ouRoleResolver)
+ 
+-	// Adapt the OU service to the runtime provider contract. The OAuth and flow layers depend only
+-	// on providers.OrganizationUnitProvider and never see the management model.
+-	ouProvider := ou.NewOrganizationUnitProvider(ouService)
+-
+ 	// Complete the two-phase initialization of the privilege-escalation guard. The resolver spans
+ 	// roles, groups, and entities, so it can only be built once all three are ready. Until it is
+ 	// injected the guard fails closed, so this must not be skipped.
+ 	ouAuthzService.SetPermissionResolver(
+ 		role.NewEffectivePermissionResolver(roleService, groupService, entityService))
+ 
+-	authZService := authz.Initialize(
+-		roleService, resourceService, entityService, authZENPDPService)
++	authZService := authz.Initialize(roleService)
+ 
+-	idpService, err := idp.Initialize(
+-		cacheManager, entityTypeService, roleService, groupService, resourceService, ouService)
++	idpService, err := idp.Initialize(cacheManager, entityTypeService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize IDPService")
+ 
++	templateService, err := template.Initialize()
++	fatalOnError(ctx, logger, err, "Failed to initialize template service")
++
++	notifSenderMgtSvc, notifOTPService, notifSenderSvc, err := notification.Initialize(jwtService)
++	fatalOnError(ctx, logger, err, "Failed to initialize NotificationService")
++
+ 	// Register the /connections API as a thin layer over the identity-provider and
+ 	// notification-sender services.
+-	connectionExporter, ouDependencyProvider, httpConnectionWriter, err := connection.Initialize(
+-		mux, mcpServer, idpService, notifSenderMgtSvc, resourceService, authZENPDPService, httpConnectionService,
+-		nil, sharingService)
++	connectionExporter, err := connection.Initialize(mux, idpService, notifSenderMgtSvc)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize connection declarative resources")
+ 	exporters = append(exporters, connectionExporter)
+ 
+@@ -361,7 +238,7 @@
+ 	otpCoreService := otp.Initialize(notifOTPService)
+ 
+ 	// Initialize federated authentication services.
+-	oauthAuthnService := authnOAuth.Initialize(idpService)
++	oauthAuthnService := authnOAuth.Initialize(idpService, entityProvider)
+ 	oidcAuthnService := authnOIDC.Initialize(oauthAuthnService, jwtService)
+ 	googleAuthnService := google.Initialize(oidcAuthnService, jwtService)
+ 	githubAuthnService := github.Initialize(oauthAuthnService)
+@@ -378,22 +255,19 @@
+ 	fatalOnError(ctx, logger, err, "Failed to initialize runtime store")
+ 
+ 	// Initialize passkey service
+-	passkeyService := passkey.Initialize(entityService, runtimeStoreProvider, governanceService)
++	passkeyService := passkey.Initialize(entityService, runtimeStoreProvider)
+ 
+ 	// Shared DPoP verifier (and its JTI replay cache) so OAuth and OpenID4VCI
+ 	// share JTI replay protection.
+ 	oauthCfg := oauthconfig.FromServerRuntime()
+ 	dpopVerifier := dpop.Initialize(oauthCfg, jti.Initialize(runtimeStoreProvider), runtimeCryptoSvc)
+-	artifactLifetime := func(client *providers.OAuthClient) time.Duration {
+-		return tokenservice.ArtifactLifetime(oauthCfg, client)
+-	}
+ 
+ 	openid4vpSvc, openid4vpDefSvc, openid4vciCredSvc, exporters :=
+ 		initializeVCServices(ctx, logger, mux, runtimeCryptoSvc, configCryptoSvc, jwtService,
+ 			ouService, runtimeStoreProvider, exporters)
+ 
+ 	defaultProvider := defaultprovider.Initialize(entityService, passkeyService,
+-		otpCoreService, magicLinkService, openid4vpSvc, federatedAuths, governanceService)
++		otpCoreService, magicLinkService, openid4vpSvc, federatedAuths)
+ 
+ 	customProviders := map[string]providers.CustomAuthnProvider{}
+ 	restCfg := runtime.Config.AuthnProvider.Rest
+@@ -412,68 +286,88 @@
+ 
+ 	// Initialize authentication services.
+ 	authAssertGen := authnAssert.Initialize()
+-	consentEnforcer := authnConsent.Initialize(jwtService, authzDetailMgtService)
++	consentEnforcer := authnConsent.Initialize(jwtService)
+ 
+ 	_, directAuthGuard := authn.Initialize(mux, mcpServer, idpService, jwtService, authnProvider, authAssertGen,
+-		otpCoreService, notifSenderSvc, notifTemplateRenderer, magicLinkService, oauthAuthnService,
+-		oidcAuthnService, googleAuthnService, githubAuthnService, entityTypeService, governanceService,
+-		authnconfig.FromServerRuntime())
++		otpCoreService, notifSenderSvc, templateService, magicLinkService, oauthAuthnService,
++		oidcAuthnService, googleAuthnService, githubAuthnService,
++		runtime.Config.Server.SecurityConfig.DirectAuthSecret)
+ 
+ 	// AuthZEN access-evaluation endpoints are Direct API endpoints, so they reuse the Direct Auth
+ 	// guard created by the authn service.
+-	authzen.Initialize(mux, authZService, entityProvider, governanceService, resourceService, directAuthGuard)
++	authzen.Initialize(mux, authZService, entityProvider, resourceService, directAuthGuard)
+ 
+ 	attributeCacheService := attributecache.Initialize(runtimeStoreProvider, runtimeCryptoSvc,
+ 		runtime.Config.AttributeCache.Encryption.Enabled)
+ 
++	emailClient := initEmailClient(ctx, logger)
++
++	// Create the flow server-config handler early so it can be registered before serverconfig is
++	// initialized. The handle-existence validator is injected in a second phase after flowMgtService
++	// is available.
++	flowConfigHandler := flowmgt.NewFlowConfigHandler()
++
++	// Initialize server-wide configuration after its handler dependencies.
++	serverConfigHandlers := map[serverconfig.ConfigName]serverconfig.ServerConfigHandlerInterface{
++		serverconfig.ConfigNameCORS:                  cors.OriginHandler{},
++		serverconfig.ConfigNameDefaultResourceServer: resource.NewDefaultResourceServerConfigHandler(resourceService),
++		serverconfig.ConfigNameSession:               flowsession.ConfigHandler{},
++		serverconfig.ConfigNameFlow:                  flowConfigHandler,
++		serverconfig.ConfigNameCSP:                   csp.PolicyHandler{},
++	}
++	serverConfigService, serverConfigExporter, err := serverconfig.Initialize(mux, cacheManager, serverConfigHandlers)
++	fatalOnError(ctx, logger, err, "Failed to initialize server config service")
++	exporters = append(exporters, serverConfigExporter)
++
++	// CORS origins come from the server-config cors section.
++	cors.InitializeDynamicMatcher(serverConfigService)
++
++	// Decorate the resource provider so an empty identifier resolves the configured default resource
++	// server. Keeps the default-resource-server policy server-side: OAuth, CIBA, PAR, grant handlers,
++	// and the flow executor depend only on providers.ResourceServerProvider, not on serverConfigService.
++	// The base resourceService is still used for resource-management APIs and server-config validation.
++	resourceServerProvider := resource.NewDefaultAwareResourceServerProvider(resourceService, serverConfigService)
++
++	// The security-headers middleware reads the deny-first CSP policy from the server-config csp section.
++	csp.InitializeConfigReader(serverConfigService)
++
+ 	flowConfig := flowconfig.FromServerRuntime()
+-	revocationEnforcer, revocationSvc, err := revocation.Initialize(oauthCfg, jwtService, observabilitySvc)
+-	fatalOnError(ctx, logger, err, "Failed to initialize revocation service")
++	tokenFamilyRevocationTTL := time.Duration(runtime.Config.OAuth.RefreshToken.ValidityPeriod) * time.Second
++	revocationEnforcer, revocationSvc := revocation.Initialize(jwtService, observabilitySvc,
++		tokenFamilyRevocationTTL, runtime.Config.OAuth.Revocation.TokenFamily.OnExplicitRevokeEnabled())
+ 	sessionRevoker := sessionCriteriaRevoker{revoker: revocationSvc}
+-	// The termination hook is kept for the back-channel logout dispatcher, which OAuth builds and which
+-	// is added to the hook once OAuth is initialized.
+-	sessionService, terminationHook, sessionCfg := initSessionService(ctx, serverConfigService,
++	sessionService, sessionCfg := initSessionService(ctx, serverConfigService,
+ 		runtime.Config.Server.Identifier, sessionRevoker, logger)
+ 	flowConfig.Session = sessionCfg
+ 	flowFactory, execRegistry, interceptorRegistry, graphBuilder := initializeFlowCoreAndExecutor(ctx, logger,
+ 		cacheManager, executor.ExecutorDependencies{
+-			OUService:              ouProvider,
+-			IDPService:             idpService,
+-			NotifSenderSvc:         notifSenderSvc,
+-			JWTService:             jwtService,
+-			AuthAssertGen:          authAssertGen,
+-			ConsentEnforcer:        consentEnforcer,
+-			AuthnProvider:          authnProvider,
+-			OTPService:             otpCoreService,
+-			MagicLinkService:       magicLinkService,
+-			AuthZService:           authZService,
+-			EntityTypeService:      entityTypeService,
+-			GroupService:           groupService,
+-			RoleService:            roleService,
+-			RoleAssignmentService:  roleAssignmentService,
+-			EntityProvider:         entityProvider,
+-			UserMgtProvider:        userMgtProvider,
+-			AttributeCacheSvc:      attributeCacheService,
+-			TemplateRenderer:       notifTemplateRenderer,
+-			OAuthSvc:               oauthAuthnService,
+-			OIDCSvc:                oidcAuthnService,
+-			GithubSvc:              githubAuthnService,
+-			GoogleSvc:              googleAuthnService,
+-			OpenID4VPVerifierSvc:   openid4vpSvc,
+-			SessionService:         sessionService,
+-			ResourceService:        resourceServerProvider,
+-			UserService:            userService,
+-			CriteriaRevoker:        revocationSvc,
+-			ResourceMgtService:     resourceService,
+-			HTTPConnectionProvider: httpConnectionService,
+-			// A redirect would resend the connection's credential to another host. Each call is bounded
+-			// by its connection's timeout, and private addresses are allowed since administrators set
+-			// the endpoint.
+-			ExtensionHTTPClient: httpservice.NewHTTPClientWithoutRedirects(0, false),
+-			ObservabilitySvc:    observabilitySvc,
+-			IdentityGovernance:  governanceProvider,
+-			ArtifactLifetime:    artifactLifetime,
+-			AuthzDetailProvider: authzDetailService,
++			OUService:             ouService,
++			IDPService:            idpService,
++			NotifSenderSvc:        notifSenderSvc,
++			JWTService:            jwtService,
++			AuthAssertGen:         authAssertGen,
++			ConsentEnforcer:       consentEnforcer,
++			AuthnProvider:         authnProvider,
++			OTPService:            otpCoreService,
++			MagicLinkService:      magicLinkService,
++			AuthZService:          authZService,
++			EntityTypeService:     entityTypeService,
++			GroupService:          groupService,
++			RoleService:           roleService,
++			RoleAssignmentService: roleAssignmentService,
++			EntityProvider:        entityProvider,
++			AttributeCacheSvc:     attributeCacheService,
++			EmailClient:           emailClient,
++			TemplateService:       templateService,
++			OAuthSvc:              oauthAuthnService,
++			OIDCSvc:               oidcAuthnService,
++			GithubSvc:             githubAuthnService,
++			GoogleSvc:             googleAuthnService,
++			OpenID4VPVerifierSvc:  openid4vpSvc,
++			SessionService:        sessionService,
++			ResourceService:       resourceServerProvider,
++			UserService:           userService,
++			CriteriaRevoker:       revocationSvc,
+ 		},
+ 		interceptor.InterceptorDependencies{},
+ 		flowConfig,
+@@ -481,8 +375,7 @@
+ 
+ 	flowMgtService, flowMgtExporter, err := flowmgt.Initialize(
+ 		mux, mcpServer, cacheManager, flowFactory, execRegistry, interceptorRegistry, graphBuilder,
+-		serverConfigService, ouService, notifTemplateSvc, httpConnectionService, flowConfigHandler, idpService,
+-		true, sharingService)
++		serverConfigService, ouService, flowConfigHandler)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize FlowMgtService")
+ 
+ 	// Two-phase initialization: inject the flow resolver into the OU service.
+@@ -501,11 +394,9 @@
+ 	fatalOnError(ctx, logger, err, "Failed to initialize LayoutMgtService")
+ 	exporters = append(exporters, layoutExporter)
+ 
+-	cimdService := cimd.Initialize(mux)
+ 	inboundClientService, err := inboundclient.Initialize(
+ 		cacheManager, certservice, entityProvider,
+-		themeMgtService, layoutMgtService, flowMgtService, entityTypeService, runtimeCryptoSvc, jweService,
+-		cimdService, sharingService, entityService)
++		themeMgtService, layoutMgtService, flowMgtService, entityTypeService, runtimeCryptoSvc, jweService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize InboundClientService")
+ 
+ 	// Inject the consent service into the consent enforcer. It is wired here rather than at enforcer
+@@ -513,69 +404,46 @@
+ 	// flow services (which themselves depend on the enforcer) are initialized.
+ 	consentEnforcer.SetConsentService(initConsentService(ctx, logger, inboundClientService))
+ 
++	// TODO: Remove entityService dependency after finalizing declarative resource loading pattern
+ 	applicationService, applicationExporter, err := application.Initialize(
+-		mux, mcpServer, entityService, inboundClientService, ouService, i18nService,
+-		runtimeCryptoSvc, serverConfigService, artifactLifetime, sharingService, nil, governanceService, nil)
++		mux, mcpServer, entityProvider, entityService, inboundClientService, ouService, i18nService,
++		runtimeCryptoSvc, serverConfigService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize ApplicationService")
+-	// Two-phase initialization: inject the application service into the executors that act on it.
+-	fatalOnError(ctx, logger, executor.SetApplicationProvider(execRegistry, applicationService),
+-		"Failed to inject the application provider into the flow executors")
+ 	exporters = append(exporters, applicationExporter)
+ 
+ 	agentService, agentExporter, err := agent.Initialize(mux, entityService, inboundClientService, ouService,
+-		roleService, ouAuthzService, governanceService, nil, entityTypeService,
+-		dbprovider.GetDBProvider(), observabilitySvc)
++		roleService)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize AgentService")
+ 	exporters = append(exporters, agentExporter)
+ 
+-	// Two-phase initialization: inject the agent provider into the executors that provision agents.
+-	fatalOnError(ctx, logger, executor.SetAgentMgtProvider(execRegistry, agentmgtprovider.Initialize(agentService)),
+-		"Failed to inject the agent provider into the flow executors")
+-
+ 	// Wire the dependency registry into the consuming services (two-phase init to avoid cyclic
+ 	// imports). flowMgtService is both a consumer and a provider: it reports which flows reference an
+-	// identity provider, notification sender or HTTP connection.
++	// identity provider or notification sender.
+ 	registerDependencyRegistry(dependencyConsumers{
+-		theme:          themeMgtService,
+-		layout:         layoutMgtService,
+-		flow:           flowMgtService,
+-		user:           userService,
+-		idp:            idpService,
+-		notifSender:    notifSenderMgtSvc,
+-		application:    applicationService,
+-		agent:          agentService,
+-		group:          groupService,
+-		ou:             ouService,
+-		resource:       resourceService,
+-		notifTemplate:  notifTemplateSvc,
+-		httpConnection: httpConnectionService,
++		theme:       themeMgtService,
++		layout:      layoutMgtService,
++		flow:        flowMgtService,
++		user:        userService,
++		idp:         idpService,
++		notifSender: notifSenderMgtSvc,
++		application: applicationService,
++		agent:       agentService,
++		group:       groupService,
++		ou:          ouService,
++		resource:    resourceService,
+ 	}, applicationService, agentService, flowMgtService, roleAssignmentService, roleService,
+-		groupService, ouService, ouUserResolver, ouGroupResolver, entityTypeService, resourceService,
+-		sharingService, notifTemplateSvc, ouDependencyProvider)
++		groupService, ouService, ouUserResolver, ouGroupResolver, resourceService)
+ 
+ 	// Initialize design resolve service for theme and layout resolution
+ 	designResolveService := resolve.Initialize(mux, themeMgtService, layoutMgtService, applicationService)
+ 
+-	// Inject the design resolve service now that it exists (the translation resolver was passed at init).
+-	notifTemplateRenderer.SetDesignResolver(designResolveService)
+-
+-	actorProvider := actorprovider.Initialize(
+-		inboundClientService, entityProvider, authnProvider, roleService, entityTypeService)
+-	// Two-phase initialization: inject the actor provider into the executors that resolve an actor's
+-	// OAuth client.
+-	fatalOnError(ctx, logger, executor.SetActorProvider(execRegistry, actorProvider),
+-		"Failed to inject the actor provider into the flow executors")
++	actorProvider := actorprovider.Initialize(inboundClientService, entityProvider, authnProvider, roleService)
+ 
+ 	// Initialize flow metadata service
+-	_ = flowmeta.Initialize(mux, actorProvider, ouProvider, designResolveService, i18nService)
++	_ = flowmeta.Initialize(mux, actorProvider, ouService, designResolveService, i18nService)
+ 
+ 	// Initialize export service with collected exporters
+-	exportService := export.Initialize(mux, exporters, export.TemplatePlaceholders)
+-
+-	// The gateways this control plane administers. Registration is bounded by server.max_gateways,
+-	// which is one unless a deployment raises it.
+-	gatewayService, err := gateway.Initialize(mux, exportService, nil, exporters, nil)
+-	fatalOnError(ctx, logger, err, "Failed to initialize gateway service")
++	_ = export.Initialize(mux, exporters)
+ 
+ 	// Initialize import service
+ 	importService := importer.Initialize(
+@@ -598,42 +466,25 @@
+ 		openid4vpDefSvc,
+ 		openid4vciCredSvc,
+ 		serverConfigService,
+-		gatewayService,
+-		notifTemplateSvc,
+-		authZENPDPService,
+-		sharingService,
+-		authzDetailMgtService,
+-		httpConnectionWriter,
+-		// Only the Control Plane serves projects, so a root organization unit is imported on its own.
+-		nil,
+-		// References in imported configuration are replaced with what this deployment's store holds. A
+-		// secret is put only where an export of the resource keeps one, which its exporter names.
+-		secretresolver.New(variablestore.Lookup(references)).
+-			WithSecretFields(declarativeresource.SecretFieldsOf(exporters)),
+ 	)
+ 
+ 	attestationProvider := initAttestationProvider(ctx, logger, runtimeCryptoSvc)
+-	// The flow endpoint and the authorize endpoint share one SSO handle transport. The SSO cookie is
+-	// marked Secure unless the deployment is configured to serve over plain HTTP.
+-	ssoTransport := flowsession.NewHandleTransport(flowsession.TransportConfig{SecureCookies: flowConfig.SecureCookies})
+ 	flowExecService, err := flowexec.Initialize(mux, flowMgtService, actorProvider,
+ 		execRegistry, interceptorRegistry, observabilitySvc, runtimeCryptoSvc, attestationProvider,
+-		graphBuilder, jwtService, runtimeStoreProvider, transactioner, serverConfigService, ssoTransport,
+-		governanceProvider, flowMgtService, flowConfig)
++		graphBuilder, jwtService, runtimeStoreProvider, transactioner, serverConfigService, flowConfig)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize flow execution service")
+ 
+ 	// Initialize OAuth services.
+-	tokenValidator, dispatcher, err := oauth.Initialize(mux, actorProvider, authnProvider, jwtService, jweService,
+-		flowExecService, observabilitySvc, runtimeCryptoSvc, ouProvider, attributeCacheService, authZService,
+-		resourceServerProvider, i18nService, idpService, dpopVerifier,
+-		runtimeStoreProvider, transactioner, revocationEnforcer, revocationSvc,
+-		sessionService, ssoTransport, flowMgtService, governanceProvider, authzDetailService, authzDetailMgtService,
+-		oauthCfg)
++	tokenValidator, err := oauth.Initialize(mux, actorProvider, authnProvider, jwtService, jweService,
++		flowExecService, observabilitySvc, runtimeCryptoSvc, ouService, attributeCacheService, authZService,
++		resourceServerProvider,
++		// The standalone ThunderID server ships without a device secret provider: Native SSO is an
++		// embedder-supplied capability (eSignet supplies it via WithDeviceSecretProvider). Requests
++		// that use device_sso or the device-secret token exchange profile are rejected.
++		nil,
++		i18nService, idpService, dpopVerifier,
++		runtimeStoreProvider, transactioner, revocationEnforcer, revocationSvc, oauthCfg)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize OAuth services")
+-	if dispatcher != nil {
+-		err = terminationHook.Add(dispatcher)
+-		fatalOnError(ctx, logger, err, "Failed to register the back-channel logout dispatcher")
+-	}
+ 
+ 	// Initialized after the OAuth services because credential issuance validates the presented
+ 	// access token with the OAuth token validator and resolves the wallet application behind it.
+@@ -643,7 +494,7 @@
+ 
+ 	if oauthCfg.OAuth.DCR.IsEnabled() {
+ 		// Register OAuth2 DCR service.
+-		err = dcr.Initialize(mux, applicationService, ouService, i18nService, authnProvider, oauthCfg)
++		err = dcr.Initialize(mux, applicationService, ouService, i18nService, oauthCfg)
+ 		fatalOnError(ctx, logger, err, "Failed to initialize OAuth2 DCR service")
+ 	}
+ 
+@@ -651,7 +502,7 @@
+ 	healthSvc := healthcheckservice.Initialize(dbprovider.GetDBProvider(), dbprovider.GetRedisProvider())
+ 	services.NewHealthCheckService(mux, healthSvc)
+ 
+-	return jwtService, runtimeCryptoSvc, importService, mcpServer, dispatcher, lockNotifier
++	return jwtService, runtimeCryptoSvc, importService
+ }
+ 
+ // initAttestationProvider initializes the platform attestation provider, terminating server startup
+@@ -668,19 +519,17 @@
+ // dependencyConsumers groups the services that check the dependency registry before deleting their
+ // own resources.
+ type dependencyConsumers struct {
+-	theme          thememgt.ThemeMgtServiceInterface
+-	layout         layoutmgt.LayoutMgtServiceInterface
+-	flow           flowmgt.FlowMgtServiceInterface
+-	user           user.UserServiceInterface
+-	idp            idp.IDPServiceInterface
+-	notifSender    notification.NotificationSenderMgtSvcInterface
+-	application    application.ApplicationServiceInterface
+-	agent          agent.AgentServiceInterface
+-	group          group.GroupServiceInterface
+-	ou             ou.ConfigurableOUService
+-	resource       resource.ResourceServiceInterface
+-	notifTemplate  notificationtemplate.NotificationTemplateServiceInterface
+-	httpConnection httpconnection.HTTPConnectionServiceInterface
++	theme       thememgt.ThemeMgtServiceInterface
++	layout      layoutmgt.LayoutMgtServiceInterface
++	flow        flowmgt.FlowMgtServiceInterface
++	user        user.UserServiceInterface
++	idp         idp.IDPServiceInterface
++	notifSender notification.NotificationSenderMgtSvcInterface
++	application application.ApplicationServiceInterface
++	agent       agent.AgentServiceInterface
++	group       group.GroupServiceInterface
++	ou          ou.ConfigurableOUService
++	resource    resource.ResourceServiceInterface
+ }
+ 
+ // registerDependencyRegistry builds the dependency registry from the given providers and wires it
+@@ -698,8 +547,6 @@
+ 	consumers.group.SetDependencyRegistry(registry)
+ 	consumers.ou.SetDependencyRegistry(registry)
+ 	consumers.resource.SetDependencyRegistry(registry)
+-	consumers.notifTemplate.SetDependencyRegistry(registry)
+-	consumers.httpConnection.SetDependencyRegistry(registry)
+ }
+ 
+ // unregisterServices unregisters all services that require cleanup during shutdown.
+@@ -708,17 +555,15 @@
+ }
+ 
+ // initSessionService reads the effective SSO session configuration from the server-config section and
+-// builds the session service, returning the service, its termination hook, and the config so the caller
+-// can thread the config into flowexec too.
++// builds the session service, returning both so the caller can thread the config into flowexec too.
+ func initSessionService(ctx context.Context, svc serverconfig.ServerConfigService, deploymentID string,
+-	criteriaRevoker flowsession.CriteriaRevoker, logger *log.Logger,
+-) (flowsession.Service, flowsession.TerminationHook, flowsession.Config) {
++	criteriaRevoker flowsession.CriteriaRevoker, logger *log.Logger) (flowsession.Service, flowsession.Config) {
+ 	cfg := readSessionConfig(ctx, svc, logger)
+-	sessionService, terminationHook, err := flowsession.Initialize(dbprovider.GetDBProvider(), deploymentID,
++	sessionService, err := flowsession.Initialize(dbprovider.GetDBProvider(), deploymentID,
+ 		flowsession.NewTimeouts(cfg.IdleTimeoutSeconds, cfg.AbsoluteTimeoutSeconds,
+ 			cfg.ActivityRefreshIntervalSeconds), criteriaRevoker)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize SSO session service")
+-	return sessionService, terminationHook, cfg
++	return sessionService, cfg
+ }
+ 
+ // sessionCriteriaRevoker fixes the reason used when the session service revokes a token family.
+@@ -762,6 +607,17 @@
+ 	}
+ }
+ 
++// initEmailClient initializes the email client, returning nil if not configured.
++func initEmailClient(ctx context.Context, logger *log.Logger) email.EmailClientInterface {
++	client, err := email.Initialize()
++	if err != nil {
++		logger.Debug(ctx, "Email client not configured. "+
++			"EmailExecutor will be registered but will not send emails.", log.Error(err))
++		return nil
++	}
++	return client
++}
++
+ // initializeFlowCoreAndExecutor initializes the flow core and executor services.
+ func initializeFlowCoreAndExecutor(
+ 	ctx context.Context,
+@@ -778,7 +634,7 @@
+ 	interceptorDeps.FlowFactory = flowFactory
+ 
+ 	// Initialize flow executor registry
+-	execRegistry, err := executor.Initialize(execDeps, flowConfig)
++	execRegistry, err := executor.Initialize(execDeps, flowConfig.Flow)
+ 	fatalOnError(ctx, logger, err, "Failed to register flow executors")
+ 	interceptorRegistry, err := interceptor.Initialize(interceptorDeps, flowConfig.Flow)
+ 	fatalOnError(ctx, logger, err, "Failed to initialize Interceptor registry")
